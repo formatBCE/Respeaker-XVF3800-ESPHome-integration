@@ -242,8 +242,8 @@ globals:
   - id: current_led_effect
     type: std::string
     restore_value: no
-    initial_value: '"none"'
-  - id: led_animation_active
+    initial_value: '"off"'
+  - id: volume_display_active
     type: bool
     restore_value: no
     initial_value: 'false'
@@ -265,7 +265,6 @@ time:
     on_time_sync:
       - script.execute: publish_current_time
           
-
 switch:
   # Mute Sound Switch.
   - platform: template
@@ -347,15 +346,8 @@ number:
     min_value: 0.4
     max_value: 1.0
     step: 0.05
-    initial_value: 0.8  # Match your global default
-    mode: slider  # Creates a slider in Home Assistant UI
-    on_value:
-      then:
-        - lambda: |-
-            // Trigger LED update for static effects
-            if (id(current_led_effect) == "solid") {
-              id(led_ring_solid).execute();
-            }
+    initial_value: 0.8
+    mode: slider
 
 sensor:
   - platform: template
@@ -387,104 +379,57 @@ interval:
   - interval: 50ms  # Adjust based on desired animation smoothness
     id: led_animation_interval
     then:
-      - if:
-          condition:
-            lambda: 'return id(led_animation_active);'
-          then:
-            - lambda: |-
-                std::string effect = id(current_led_effect);
-                if (effect == "breathe") {
-                  id(update_breathe_effect).execute();
-                } else if (effect == "rainbow") {
-                  id(update_rainbow_effect).execute();
-                } else if (effect == "comet_cw") {
-                  id(update_comet_cw_effect).execute();
-                } else if (effect == "comet_ccw") {
-                  id(update_comet_ccw_effect).execute();
-                } else if (effect == "twinkle") {
-                  id(update_twinkle_effect).execute();
-                } else if (effect == "timer_tick") {
-                  id(update_timer_tick_effect).execute();
-                } else if (effect == "volume_display") {
-                  id(update_volume_display_effect).execute();
-                }
+      - lambda: |-
+          if (id(volume_display_active)) {
+            id(update_volume_display_effect).execute();
+            return;
+          }
+          std::string effect = id(current_led_effect);
+          if (effect == "off") {
+            return;
+          } else if (effect == "breathe") {
+            id(update_breathe_effect).execute();
+          } else if (effect == "rainbow") {
+            id(update_rainbow_effect).execute();
+          } else if (effect == "comet_cw") {
+            id(update_comet_cw_effect).execute();
+          } else if (effect == "comet_ccw") {
+            id(update_comet_ccw_effect).execute();
+          } else if (effect == "twinkle") {
+            id(update_twinkle_effect).execute();
+          } else if (effect == "timer_tick") {
+            id(update_timer_tick_effect).execute();
+          }
 
 script:
-  # Static effects (no animation needed)
-  - id: led_ring_solid
+  # =========================================================================
+  # == Centralized script to control all LED effects (Solid effect removed) ==
+  # =========================================================================
+  - id: led_set_effect
     mode: restart
+    parameters:
+      effect: std::string
+      r: float
+      g: float
+      b: float
+      speed: float
     then:
       - lambda: |-
-          id(current_led_effect) = "solid";
-          id(led_animation_active) = false;
+          // Update global variables with the new parameters
+          id(led_ring_color_r) = r;
+          id(led_ring_color_g) = g;
+          id(led_ring_color_b) = b;
+          id(led_ring_speed) = speed;
+          id(current_led_effect) = effect;
+
+          // Handle the two types of effects: Off and Animated
+          if (effect == "off") {
+            uint32_t colors[12] = {0};
+            id(respeaker).set_led_ring(colors);
+          } else {
+            id(last_led_update_time) = millis(); // Reset timer for smooth animation start
+          }
           
-          float brightness = id(led_ring_brightness).state;
-          uint8_t r = (uint8_t)(id(led_ring_color_r) * 255 * brightness);
-          uint8_t g = (uint8_t)(id(led_ring_color_g) * 255 * brightness);
-          uint8_t b = (uint8_t)(id(led_ring_color_b) * 255 * brightness);
-          uint32_t current_color = (r << 16) | (g << 8) | b;
-          
-          uint32_t colors[12];
-          for (int i=0; i<12; i++) colors[i] = current_color;
-          id(respeaker).set_led_ring(colors);
-
-  # Animated effects - just initialize and let interval handle updates
-  - id: led_ring_breathe
-    mode: restart
-    then:
-      - lambda: |-
-          id(current_led_effect) = "breathe";
-          id(led_animation_active) = true;
-          id(last_led_update_time) = millis();
-
-  - id: led_ring_rainbow_rotate
-    mode: restart
-    then:
-      - lambda: |-
-          id(current_led_effect) = "rainbow";
-          id(led_animation_active) = true;
-          id(last_led_update_time) = millis();
-
-  - id: led_ring_comet_cw
-    mode: restart
-    then:
-      - lambda: |-
-          id(current_led_effect) = "comet_cw";
-          id(led_animation_active) = true;
-          id(last_led_update_time) = millis();
-
-  - id: led_ring_comet_ccw
-    mode: restart
-    then:
-      - lambda: |-
-          id(current_led_effect) = "comet_ccw";
-          id(led_animation_active) = true;
-          id(last_led_update_time) = millis();
-
-  - id: led_ring_twinkle
-    mode: restart
-    then:
-      - lambda: |-
-          id(current_led_effect) = "twinkle";
-          id(led_animation_active) = true;
-          id(last_led_update_time) = millis();
-
-  - id: led_ring_timer_tick
-    mode: restart
-    then:
-      - lambda: |-
-          id(current_led_effect) = "timer_tick";
-          id(led_animation_active) = true;
-          id(last_led_update_time) = millis();
-
-  - id: led_ring_volume_display
-    mode: restart
-    then:
-      - lambda: |-
-          id(current_led_effect) = "volume_display";
-          id(led_animation_active) = true;
-          id(last_led_update_time) = millis();
-
   # Individual update scripts for each animated effect
   - id: update_breathe_effect
     then:
@@ -736,16 +681,7 @@ script:
             }
           }
           id(respeaker).set_led_ring(colors);
-
-  # Off script - stop all animations
-  - id: led_ring_off
-    then:
-      - lambda: |-
-          id(current_led_effect) = "none";
-          id(led_animation_active) = false;
-          uint32_t colors[12] = {0};
-          id(respeaker).set_led_ring(colors);
-
+          
   # Master script controlling the LEDs, based on different conditions : initialization in progress, wifi and api connected and voice assistant phase.
   # For the sake of simplicity and re-usability, the script calls child scripts defined below.
   # This script will be called every time one of these conditions is changing.
@@ -832,169 +768,169 @@ script:
           }
 
   # Script executed if respeaker startup failed
-  # Slow red breathe
   - id: control_leds_respeaker_startup_failed
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 0.7;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.0;
-          id(led_ring_speed) = 0.5;
-          id(led_ring_breathe).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "breathe"
+          r: 0.7
+          g: 0.0
+          b: 0.0
+          speed: 0.5
 
   # Script executed during Improv BLE
-  # Warm White Twinkle
   - id: control_leds_improv_ble_state
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 1.0;
-          id(led_ring_color_g) = 0.89;
-          id(led_ring_color_b) = 0.71;
-          id(led_ring_speed) = 10;
-          id(led_ring_twinkle).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "twinkle"
+          r: 1.0
+          g: 0.89
+          b: 0.71
+          speed: 10.0
 
   # Script executed during initialization
-  # Blue Twinkle: fast if Wifi is connected, Else slow
   - id: control_leds_init_state
     then:
       - if:
           condition:
             wifi.connected:
           then:
-            - lambda: |-
-                id(led_ring_color_r) = 0.09;
-                id(led_ring_color_g) = 0.73;
-                id(led_ring_color_b) = 0.95;
-                id(led_ring_speed) = 20;
-                id(led_ring_twinkle).execute();
+            - script.execute:
+                id: led_set_effect
+                effect: "twinkle"
+                r: 0.09
+                g: 0.73
+                b: 0.95
+                speed: 20.0
           else:
-            - lambda: |-
-                id(led_ring_color_r) = 0.09;
-                id(led_ring_color_g) = 0.73;
-                id(led_ring_color_b) = 0.95;
-                id(led_ring_speed) = 4;
-                id(led_ring_twinkle).execute();
+            - script.execute:
+                id: led_set_effect
+                effect: "twinkle"
+                r: 0.09
+                g: 0.73
+                b: 0.95
+                speed: 4.0
 
   # Script executed when the device has no connection to Home Assistant
-  # Red Twinkle (This will be visible during HA updates for example)
   - id: control_leds_no_ha_connection_state
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 1.0;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.0;
-          id(led_ring_speed) = 10;
-          id(led_ring_twinkle).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "twinkle"
+          r: 1.0
+          g: 0.0
+          b: 0.0
+          speed: 10.0
 
   # Script executed when the voice assistant is waiting for a command (After the wake word)
-  # Slow clockwise spin of the LED ring.
   - id: control_leds_voice_assistant_waiting_for_command_phase
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 0.6;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.6;
-          id(led_ring_speed) = 0.5;
-          id(led_ring_comet_cw).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "comet_cw"
+          r: 0.6
+          g: 0.0
+          b: 0.6
+          speed: 0.5
 
   # Script executed when the voice assistant is listening to a command
-  # Fast clockwise spin of the LED ring.
   - id: control_leds_voice_assistant_listening_for_command_phase
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 0.6;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.6;
-          id(led_ring_speed) = 2;
-          id(led_ring_comet_cw).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "comet_cw"
+          r: 0.6
+          g: 0.0
+          b: 0.6
+          speed: 2.0
 
   # Script executed when the voice assistant is thinking to a command
-  # Breathe
   - id: control_leds_voice_assistant_thinking_phase
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 0.6;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.6;
-          id(led_ring_speed) = 1;
-          id(led_ring_breathe).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "breathe"
+          r: 0.6
+          g: 0.0
+          b: 0.6
+          speed: 1.0
 
   # Script executed when the voice assistant is replying to a command
-  # Fast anticlockwise spin of the LED ring.
   - id: control_leds_voice_assistant_replying_phase
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 0.6;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.6;
-          id(led_ring_speed) = 1;
-          id(led_ring_comet_ccw).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "comet_ccw"
+          r: 0.6
+          g: 0.0
+          b: 0.6
+          speed: 1.0
 
   # Script executed when the voice assistant is in error
-  # Fast Red breathe
   - id: control_leds_voice_assistant_error_phase
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 1.0;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.0;
-          id(led_ring_speed) = 3;
-          id(led_ring_breathe).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "breathe"
+          r: 1.0
+          g: 0.0
+          b: 0.0
+          speed: 3.0
 
   # Script executed when the voice assistant is not ready
   - id: control_leds_voice_assistant_not_ready_phase
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 1.0;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.0;
-          id(led_ring_speed) = 5;
-          id(led_ring_twinkle).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "twinkle"
+          r: 1.0
+          g: 0.0
+          b: 0.0
+          speed: 5.0
 
   # Script executed when the volume is changed
-  # A number of LEDs turn on indicating a visual representation of the volume of the media player entity.
   - id: control_leds_volume_changed
     mode: restart
     then:
       - lambda: |-
-          id(led_ring_color_r) = 0.6;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.6;
-          id(led_ring_volume_display).execute();
+          id(volume_display_active) = true;
       - delay: 2s
       - lambda: |-
-          // Stop volume display effect and return to previous state
-          id(led_animation_active) = false;
-      - script.execute: control_leds
+          id(volume_display_active) = false;
 
   # Script executed when the timer is ringing, to control the LEDs
-  # The LED ring blinks.
   - id: control_leds_timer_ringing
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 0.6;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.6;
-          id(led_ring_speed) = 5;
-          id(led_ring_breathe).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "breathe"
+          r: 0.6
+          g: 0.0
+          b: 0.6
+          speed: 5.0
 
   # Script executed when the timer is ticking, to control the LEDs
-  # The LEDs shows the remaining time as a fraction of the full ring.
   - id: control_leds_timer_ticking
     then:
-      - lambda: |-
-          id(led_ring_color_r) = 0.6;
-          id(led_ring_color_g) = 0.0;
-          id(led_ring_color_b) = 0.6;
-          id(led_ring_timer_tick).execute();
+      - script.execute:
+          id: led_set_effect
+          effect: "timer_tick"
+          r: 0.6
+          g: 0.0
+          b: 0.6
+          speed: 1.0
 
   # Script executed when the voice assistant is idle (waiting for a wake word)
-  # Nothing
   - id: control_leds_voice_assistant_idle_phase
     then:
-      - lambda: |-
-          id(led_ring_off).execute();
-
+      - script.execute:
+          id: led_set_effect
+          effect: "off"
+          r: 0.0
+          g: 0.0
+          b: 0.0
+          speed: 0.0
 
   # Script executed when the timer is ringing, to playback sounds.
   - id: ring_timer
@@ -1452,23 +1388,6 @@ micro_wake_word:
                                 wake_word: !lambda return wake_word;
 
 select:
-  - platform: template
-    name: "LED Ring Effect"
-    id: led_ring_effect
-    optimistic: true
-    # internal: true # TODO uncomment
-    options: ["Off", "Solid", "Breathe", "Rainbow", "Comet", "Twinkle"]
-    restore_value: true
-    on_value:
-      then:
-        - script.execute: led_ring_off
-        - lambda: |-
-            if (x == "Solid") { id(led_ring_solid).execute(); }
-            else if (x == "Breathe") { id(led_ring_breathe).execute(); }
-            else if (x == "Rainbow") { id(led_ring_rainbow_rotate).execute(); }
-            else if (x == "Comet") { id(led_ring_comet_cw).execute(); }
-            else if (x == "Twinkle") { id(led_ring_twinkle).execute(); }
-            else { id(led_ring_off).execute(); }
   - platform: template
     name: "Wake word sensitivity"
     optimistic: true
