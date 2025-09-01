@@ -1373,7 +1373,7 @@ respeaker_xvf3800:
     name: "Firmware Version" 
     update_interval: 120s
   firmware:
-    url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/blob/f8332b65d5a11d591a3001d767c1e1a9019853d3/xvf3800_inthost-lr48-sqr-i2c-v1.0.5-test1.bin
+    url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/refs/heads/main/xvf3800_inthost-lr48-sqr-i2c-v1.0.5-test1.bin
     version: "1.0.5"
     md5: f02ba056b966c483edff43322901c9a6
 
