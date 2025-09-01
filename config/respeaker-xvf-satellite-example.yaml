@@ -1331,9 +1331,10 @@ external_components:
     components:
       - i2s_audio
     refresh: 0s
-  - source: 
-      type: local
-      path: components
+  - source:
+      type: git
+      url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration
+      ref: main
     components: 
       - respeaker_xvf3800
       - aic3104
