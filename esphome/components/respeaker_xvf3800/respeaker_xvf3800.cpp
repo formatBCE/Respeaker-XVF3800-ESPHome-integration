@@ -438,7 +438,7 @@ bool RespeakerXVF3800::read_mute_status() {
     ESP_LOGD(TAG, "GPO Status: %02X, GPO data: %02X %02X %02X %02X %02X", 
              status, gpo_values[0], gpo_values[1], gpo_values[2], gpo_values[3], gpo_values[4]);
     
-    bool gpio30 = (gpo_values[3] & 0x01) != 0;
+    bool gpio30 = (gpo_values[1] & 0x01) != 0;
     ESP_LOGD(TAG, "GPIO30 (mute): %s", gpio30 ? "MUTED" : "UNMUTED");
     return gpio30;
   }
