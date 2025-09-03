@@ -1,4 +1,4 @@
-# ESPHome components and example config for Respeaker XVF3800
+# ESPHome components and example config for [Respeaker XVF3800](https://github.com/respeaker/reSpeaker_XVF3800_USB_4MIC_ARRAY)
 
 ## _ATTENTION! Early alpha, use on your own risk!_
 ## Testing appreciated.
