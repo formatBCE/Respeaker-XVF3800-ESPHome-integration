@@ -1282,7 +1282,7 @@ respeaker_xvf3800:
   mute_switch:
     id: mic_mute_switch
     name: "Microphone Mute"
-    update_interval: 5s
+    update_interval: 1s
     on_turn_on:
       - if:
           condition:
@@ -1309,9 +1309,9 @@ respeaker_xvf3800:
     name: "Firmware Version" 
     update_interval: 120s
   firmware:
-    url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/refs/heads/main/xvf3800_inthost-lr48-sqr-i2c-v1.0.5-test1.bin
+    url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/refs/heads/main/respeaker_xvf3800_i2s_master_dfu_firmware_v1.0.5_48k.bin
     version: "1.0.5"
-    md5: f02ba056b966c483edff43322901c9a6
+    md5: be440ddef7d34571f01b74513005887f
 
   # LED effect selector (Off, Breath, Rainbow, Solid, Direction)
   # "Off" acts as the off state - no separate switch needed!
