@@ -379,7 +379,9 @@ void RespeakerXVF3800::unmute_speaker() {
 // --- Original XVF3800 Methods ---
 
 bool RespeakerXVF3800::read_gpo_values(uint8_t *buffer, uint8_t *status) {
-  const uint8_t request[] = {GPO_SERVICER_RESID, GPO_SERVICER_RESID_GPO_READ_VALUES, GPO_GPO_READ_NUM_BYTES};
+  const uint8_t request[] = {GPO_SERVICER_RESID, 
+                            GPO_SERVICER_RESID_GPO_READ_VALUES | 0x80, 
+                            GPO_GPO_READ_NUM_BYTES + 1};
 
   i2c::ErrorCode err = this->write(request, sizeof(request));
   if (err != i2c::ERROR_OK) {
@@ -403,11 +405,9 @@ bool RespeakerXVF3800::read_gpo_values(uint8_t *buffer, uint8_t *status) {
 }
 
 bool RespeakerXVF3800::read_gpio_status(uint32_t *gpio_status) {
-  const uint8_t request[] = {
-    IO_CONFIG_SERVICER_RESID,
-    IO_CONFIG_SERVICER_RESID_GPI_VALUE_ALL,
-    1
-  };
+  const uint8_t request[] = {IO_CONFIG_SERVICER_RESID,
+                             IO_CONFIG_SERVICER_RESID_GPI_VALUE_ALL | 0x80,
+                             1 + 1};
 
   uint8_t data[5] = {0};
   i2c::ErrorCode err = this->write_read(request, sizeof(request), data, sizeof(data));
