@@ -53,8 +53,7 @@ float AIC3104::volume() { return this->volume_; }
 
 bool AIC3104::write_mute_() {
   // XVF3800/AIC3104 mute control - setting volume to maximum attenuation
-  // Based on Seeed Studio approach
-  uint8_t mute_value = this->is_muted_ ? 0x80 : ((1.0f - this->volume_) * 0x80); // 0x48 = max attenuation/mute
+  uint8_t mute_value = this->is_muted_ ? 0x80 : ((1.0f - this->volume_) * 0x80);
   
   if (!this->write_byte(AIC3104_PAGE_CTRL, 0x00) || 
       !this->write_byte(AIC3104_LEFT_DAC_VOLUME, mute_value) ||
@@ -69,9 +68,6 @@ bool AIC3104::write_mute_() {
 
 bool AIC3104::write_volume_() {
   ESP_LOGD(TAG, "write_volume_() called - volume: %.2f", this->volume_);
-  
-  // Simplified: Only control DAC volume like Seeed Studio example
-  // Let XVF3800 firmware handle analog stages
   
   if (!this->write_byte(AIC3104_PAGE_CTRL, 0x00)) {
     ESP_LOGE(TAG, "Failed to set page 0");

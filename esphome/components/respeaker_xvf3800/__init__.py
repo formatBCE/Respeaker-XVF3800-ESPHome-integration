@@ -22,12 +22,6 @@ CODEOWNERS = ["@your_github_username"]  # Replace with your GitHub username
 # Configuration keys
 CONF_MUTE_SWITCH = "mute_switch"
 CONF_DFU_VERSION = "dfu_version"
-CONF_LED_EFFECT = "led_effect"
-CONF_LED_SPEED = "led_speed"
-CONF_LED_BRIGHTNESS = "led_brightness"
-CONF_LED_RED = "led_red"
-CONF_LED_GREEN = "led_green"
-CONF_LED_BLUE = "led_blue"
 CONF_FIRMWARE = "firmware"
 CONF_MD5 = "md5"
 CONF_ON_BEGIN = "on_begin"
@@ -43,12 +37,6 @@ RespeakerXVF3800FlashAction = respeaker_xvf3800_ns.class_("RespeakerXVF3800Flash
 
 MuteSwitch = respeaker_xvf3800_ns.class_('MuteSwitch', switch.Switch, cg.PollingComponent)
 DFUVersionTextSensor = respeaker_xvf3800_ns.class_('DFUVersionTextSensor', text_sensor.TextSensor, cg.PollingComponent)
-LEDEffectSelect = respeaker_xvf3800_ns.class_('LEDEffectSelect', select.Select, cg.Component)
-LEDSpeedNumber = respeaker_xvf3800_ns.class_('LEDSpeedNumber', number.Number, cg.Component)
-LEDBrightnessNumber = respeaker_xvf3800_ns.class_('LEDBrightnessNumber', number.Number, cg.Component)
-LEDRedNumber = respeaker_xvf3800_ns.class_('LEDRedNumber', number.Number, cg.Component)
-LEDGreenNumber = respeaker_xvf3800_ns.class_('LEDGreenNumber', number.Number, cg.Component)
-LEDBlueNumber = respeaker_xvf3800_ns.class_('LEDBlueNumber', number.Number, cg.Component)
 
 DFUEndTrigger = respeaker_xvf3800_ns.class_("DFUEndTrigger", automation.Trigger.template())
 DFUErrorTrigger = respeaker_xvf3800_ns.class_("DFUErrorTrigger", automation.Trigger.template())
@@ -83,15 +71,6 @@ def download_firmware(config):
 
     return config
 
-# LED Effect options (0-4 as per actual device capabilities)
-LED_EFFECTS = [
-    "Off",           # 0 - turned off
-    "Breath",        # 1 - breath effect
-    "Rainbow",       # 2 - rainbow effect
-    "Solid",         # 3 - solid color
-    "Direction"      # 4 - direction of arrival
-]
-
 # Define the configuration schema for the component
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(RespeakerXVF3800),
@@ -103,30 +82,6 @@ CONFIG_SCHEMA = cv.Schema({
         DFUVersionTextSensor,
         icon="mdi:chip",
     ).extend(cv.polling_component_schema("30s")),
-    cv.Optional(CONF_LED_EFFECT): select.select_schema(
-        LEDEffectSelect,
-        icon="mdi:led-strip-variant",
-    ).extend(cv.COMPONENT_SCHEMA),
-    cv.Optional(CONF_LED_SPEED): number.number_schema(
-        LEDSpeedNumber,
-        icon="mdi:speedometer",
-    ).extend(cv.COMPONENT_SCHEMA),
-    cv.Optional(CONF_LED_BRIGHTNESS): number.number_schema(
-        LEDBrightnessNumber,
-        icon="mdi:brightness-6",
-    ).extend(cv.COMPONENT_SCHEMA),
-    cv.Optional(CONF_LED_RED): number.number_schema(
-        LEDRedNumber,
-        icon="mdi:palette",
-    ).extend(cv.COMPONENT_SCHEMA),
-    cv.Optional(CONF_LED_GREEN): number.number_schema(
-        LEDGreenNumber,
-        icon="mdi:palette",
-    ).extend(cv.COMPONENT_SCHEMA),
-    cv.Optional(CONF_LED_BLUE): number.number_schema(
-        LEDBlueNumber,
-        icon="mdi:palette",
-    ).extend(cv.COMPONENT_SCHEMA),
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     cv.Optional(CONF_FIRMWARE): cv.All(
                 {
@@ -207,82 +162,6 @@ async def to_code(config):
         await text_sensor.register_text_sensor(dfu_sensor, config[CONF_DFU_VERSION])
         cg.add(var.set_dfu_version_sensor(dfu_sensor))
         cg.add(dfu_sensor.set_parent(var))
-        
-    # Set up LED effect select if configured
-    if CONF_LED_EFFECT in config:
-        led_effect_select = cg.new_Pvariable(config[CONF_LED_EFFECT][CONF_ID])
-        await cg.register_component(led_effect_select, config[CONF_LED_EFFECT])
-        await select.register_select(led_effect_select, config[CONF_LED_EFFECT], options=LED_EFFECTS)
-        cg.add(var.set_led_effect_select(led_effect_select))
-        cg.add(led_effect_select.set_parent(var))
-        
-    # Set up LED speed number if configured
-    if CONF_LED_SPEED in config:
-        led_speed_number = cg.new_Pvariable(config[CONF_LED_SPEED][CONF_ID])
-        await cg.register_component(led_speed_number, config[CONF_LED_SPEED])
-        await number.register_number(
-            led_speed_number, 
-            config[CONF_LED_SPEED], 
-            min_value=1, 
-            max_value=10, 
-            step=1
-        )
-        cg.add(var.set_led_speed_number(led_speed_number))
-        cg.add(led_speed_number.set_parent(var))
-        
-    # Set up LED brightness number if configured
-    if CONF_LED_BRIGHTNESS in config:
-        led_brightness_number = cg.new_Pvariable(config[CONF_LED_BRIGHTNESS][CONF_ID])
-        await cg.register_component(led_brightness_number, config[CONF_LED_BRIGHTNESS])
-        await number.register_number(
-            led_brightness_number, 
-            config[CONF_LED_BRIGHTNESS], 
-            min_value=0, 
-            max_value=255, 
-            step=1
-        )
-        cg.add(var.set_led_brightness_number(led_brightness_number))
-        cg.add(led_brightness_number.set_parent(var))
-        
-    # Set up LED color numbers if configured
-    if CONF_LED_RED in config:
-        led_red_number = cg.new_Pvariable(config[CONF_LED_RED][CONF_ID])
-        await cg.register_component(led_red_number, config[CONF_LED_RED])
-        await number.register_number(
-            led_red_number, 
-            config[CONF_LED_RED], 
-            min_value=0, 
-            max_value=255, 
-            step=1
-        )
-        cg.add(var.set_led_red_number(led_red_number))
-        cg.add(led_red_number.set_parent(var))
-        
-    if CONF_LED_GREEN in config:
-        led_green_number = cg.new_Pvariable(config[CONF_LED_GREEN][CONF_ID])
-        await cg.register_component(led_green_number, config[CONF_LED_GREEN])
-        await number.register_number(
-            led_green_number, 
-            config[CONF_LED_GREEN], 
-            min_value=0, 
-            max_value=255, 
-            step=1
-        )
-        cg.add(var.set_led_green_number(led_green_number))
-        cg.add(led_green_number.set_parent(var))
-        
-    if CONF_LED_BLUE in config:
-        led_blue_number = cg.new_Pvariable(config[CONF_LED_BLUE][CONF_ID])
-        await cg.register_component(led_blue_number, config[CONF_LED_BLUE])
-        await number.register_number(
-            led_blue_number, 
-            config[CONF_LED_BLUE], 
-            min_value=0, 
-            max_value=255, 
-            step=1
-        )
-        cg.add(var.set_led_blue_number(led_blue_number))
-        cg.add(led_blue_number.set_parent(var))
 
     if config_fw := config.get(CONF_FIRMWARE):
         firmware_version = config_fw[CONF_VERSION].split(".")

@@ -38,12 +38,6 @@ const uint8_t IO_CONFIG_SERVICER_RESID = 36;
 const uint8_t IO_CONFIG_SERVICER_RESID_GPI_READ_VALUES = 0;
 const uint8_t IO_CONFIG_SERVICER_RESID_GPI_VALUE_ALL = 6;
 
-// LED Control Constants
-const uint8_t GPO_SERVICER_RESID_LED_EFFECT = 12;
-const uint8_t GPO_SERVICER_RESID_LED_BRIGHTNESS = 13;
-const uint8_t GPO_SERVICER_RESID_LED_SPEED = 15;
-const uint8_t GPO_SERVICER_RESID_LED_COLOR = 16;
-
 const uint8_t RESID_LED = 0x0C;
 const uint8_t RESID_DFU_VERSION = 0xFE;
 const uint8_t I2C_COMMAND_READ_BIT = 0x80;
@@ -161,88 +155,6 @@ class DFUVersionTextSensor : public text_sensor::TextSensor, public PollingCompo
   RespeakerXVF3800 *parent_{nullptr};
 };
 
-// Simple LED switch to turn LEDs on/off
-class LEDSwitch : public switch_::Switch, public Component {
- public:
-  void set_parent(RespeakerXVF3800 *parent) { parent_ = parent; }
-  void setup() override;
-  void write_state(bool state) override;
-  void dump_config() override;
-
- protected:
-  RespeakerXVF3800 *parent_{nullptr};
-};
-
-// LED Effect Select class to choose LED effects 1-10
-class LEDEffectSelect : public select::Select, public Component {
- public:
-  void set_parent(RespeakerXVF3800 *parent) { parent_ = parent; }
-  void setup() override;
-  void control(const std::string &value) override;
-  void dump_config() override;
-
- protected:
-  RespeakerXVF3800 *parent_{nullptr};
-};
-
-// LED Speed Number class to control LED animation speed
-class LEDSpeedNumber : public number::Number, public Component {
- public:
-  void set_parent(RespeakerXVF3800 *parent) { parent_ = parent; }
-  void setup() override;
-  void control(float value) override;
-  void dump_config() override;
-
- protected:
-  RespeakerXVF3800 *parent_{nullptr};
-};
-
-// LED Brightness Number class to control LED brightness
-class LEDBrightnessNumber : public number::Number, public Component {
- public:
-  void set_parent(RespeakerXVF3800 *parent) { parent_ = parent; }
-  void setup() override;
-  void control(float value) override;
-  void dump_config() override;
-
- protected:
-  RespeakerXVF3800 *parent_{nullptr};
-};
-
-// LED Color Numbers for RGB control (separate R, G, B numbers)
-class LEDRedNumber : public number::Number, public Component {
- public:
-  void set_parent(RespeakerXVF3800 *parent) { parent_ = parent; }
-  void setup() override;
-  void control(float value) override;
-  void dump_config() override;
-
- protected:
-  RespeakerXVF3800 *parent_{nullptr};
-};
-
-class LEDGreenNumber : public number::Number, public Component {
- public:
-  void set_parent(RespeakerXVF3800 *parent) { parent_ = parent; }
-  void setup() override;
-  void control(float value) override;
-  void dump_config() override;
-
- protected:
-  RespeakerXVF3800 *parent_{nullptr};
-};
-
-class LEDBlueNumber : public number::Number, public Component {
- public:
-  void set_parent(RespeakerXVF3800 *parent) { parent_ = parent; }
-  void setup() override;
-  void control(float value) override;
-  void dump_config() override;
-
- protected:
-  RespeakerXVF3800 *parent_{nullptr};
-};
-
 // --- Main Hub Class ---
 
 class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
@@ -268,9 +180,6 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
     this->firmware_bin_length_ = len;
   }
 
-  void mute_speaker();
-  void unmute_speaker();
-
   void set_mute_state(binary_sensor::BinarySensor* mute_state) {
     this->mute_state_ = mute_state;
   }
@@ -294,15 +203,6 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   bool read_mute_status();
   void write_mute_status(bool value);
   
-  // Original LED method (for backward compatibility)
-  void control_leds(uint8_t mode, uint8_t r, uint8_t g, uint8_t b);
-  
-  // Extended LED methods based on Seeed documentation
-  void set_led_effect(uint8_t effect);
-  void set_led_color(uint32_t color);
-  void set_led_speed(uint8_t speed);
-  void set_led_brightness(uint8_t brightness);
-  
   // Individual LED ring control (12 LEDs)
   void set_led_ring(uint32_t *rgb_array);
   
@@ -311,20 +211,6 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   // Setters for child components
   void set_mute_switch(MuteSwitch *mute_switch) { mute_switch_ = mute_switch; }
   void set_dfu_version_sensor(DFUVersionTextSensor *dfu_version_sensor) { dfu_version_sensor_ = dfu_version_sensor; }
-  void set_led_effect_select(LEDEffectSelect *led_effect_select) { led_effect_select_ = led_effect_select; }
-  void set_led_speed_number(LEDSpeedNumber *led_speed_number) { led_speed_number_ = led_speed_number; }
-  void set_led_brightness_number(LEDBrightnessNumber *led_brightness_number) { led_brightness_number_ = led_brightness_number; }
-  void set_led_red_number(LEDRedNumber *led_red_number) { led_red_number_ = led_red_number; }
-  void set_led_green_number(LEDGreenNumber *led_green_number) { led_green_number_ = led_green_number; }
-  void set_led_blue_number(LEDBlueNumber *led_blue_number) { led_blue_number_ = led_blue_number; }
-  
-  // Store current RGB values for color mixing
-  uint8_t current_red_{255};
-  uint8_t current_green_{255}; 
-  uint8_t current_blue_{255};
-  
-  // Helper to update color from current RGB values
-  void update_led_color();
 
  protected:
 #ifdef USE_RESPEAKER_XVF3800_STATE_CALLBACK
@@ -372,12 +258,6 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   // Child components
   MuteSwitch *mute_switch_{nullptr};
   DFUVersionTextSensor *dfu_version_sensor_{nullptr};
-  LEDEffectSelect *led_effect_select_{nullptr};
-  LEDSpeedNumber *led_speed_number_{nullptr};
-  LEDBrightnessNumber *led_brightness_number_{nullptr};
-  LEDRedNumber *led_red_number_{nullptr};
-  LEDGreenNumber *led_green_number_{nullptr};
-  LEDBlueNumber *led_blue_number_{nullptr};
   
   // Helper method for XMOS communication
   void xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *value, uint8_t write_byte_num);

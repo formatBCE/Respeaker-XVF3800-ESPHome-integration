@@ -17,8 +17,7 @@ static const char *const TAG = "respeaker_xvf3800";
 void RespeakerXVF3800::setup() {
   ESP_LOGCONFIG(TAG, "Setting up RespeakerXVF3800...");
   
-  // Try to detect the correct I2C address if reset pin is not provided
-  // if (this->reset_pin_ == nullptr) {
+  // Try to detect the correct I2C address
     std::vector<uint8_t> test_addresses = {0x2C, 0x28, 0x2A, 0x42, 0x44, 0x50, 0x51};
     bool found_device = false;
     
@@ -42,13 +41,6 @@ void RespeakerXVF3800::setup() {
       this->mark_failed();
       return;
     }
-  // } else {
-  //   // Reset device using the reset pin
-  //   this->reset_pin_->setup();
-  //   this->reset_pin_->digital_write(true);
-  //   delay(1);
-  //   this->reset_pin_->digital_write(false);
-  // }
   
   // Wait for XMOS to boot...
   this->set_timeout(3000, [this]() {
@@ -358,26 +350,6 @@ bool RespeakerXVF3800::dfu_check_if_ready_() {
   return false;
 }
 
-void RespeakerXVF3800::mute_speaker() {
-  uint8_t mute_req[4] = {CONFIGURATION_SERVICER_RESID, 0x10, 1, 0};
-
-  auto error_code = this->write(mute_req, sizeof(mute_req));
-  if (error_code != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Mute speaker failed");
-  }
-}
-
-void RespeakerXVF3800::unmute_speaker() {
-  uint8_t unmute_req[4] = {CONFIGURATION_SERVICER_RESID, 0x10, 1, 1};
-
-  auto error_code = this->write(unmute_req, sizeof(unmute_req));
-  if (error_code != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Unmute speaker failed");
-  }
-}
-
-// --- Original XVF3800 Methods ---
-
 bool RespeakerXVF3800::read_gpo_values(uint8_t *buffer, uint8_t *status) {
   const uint8_t request[] = {GPO_SERVICER_RESID, 
                             GPO_SERVICER_RESID_GPO_READ_VALUES | 0x80, 
@@ -458,14 +430,6 @@ void RespeakerXVF3800::write_mute_status(bool value) {
   }
 }
 
-void RespeakerXVF3800::control_leds(uint8_t mode, uint8_t r, uint8_t g, uint8_t b) {
-  uint8_t payload[] = {RESID_LED, 0x00, mode, r, g, b};
-  i2c::ErrorCode err = this->write(payload, sizeof(payload));
-  if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Error controlling LEDs. Error code: %d", (int)err);
-  }
-}
-
 void RespeakerXVF3800::xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *value, uint8_t write_byte_num) {
   std::vector<uint8_t> payload;
   payload.push_back(resid);
@@ -483,35 +447,6 @@ void RespeakerXVF3800::xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *val
   }
 }
 
-void RespeakerXVF3800::set_led_effect(uint8_t effect) {
-  ESP_LOGD(TAG, "Setting LED effect to: %d", effect);
-  uint8_t payload[1] = { effect };
-  this->xmos_write_bytes(GPO_SERVICER_RESID, GPO_SERVICER_RESID_LED_EFFECT, payload, 1);
-}
-
-void RespeakerXVF3800::set_led_color(uint32_t color) {
-  ESP_LOGD(TAG, "Setting LED color to: 0x%06X", color);
-  uint8_t payload[4] = {
-    (uint8_t)(color & 0xFF),
-    (uint8_t)((color >> 8) & 0xFF),
-    (uint8_t)((color >> 16) & 0xFF),
-    0x00
-  };
-  this->xmos_write_bytes(GPO_SERVICER_RESID, GPO_SERVICER_RESID_LED_COLOR, payload, 4);
-}
-
-void RespeakerXVF3800::set_led_speed(uint8_t speed) {
-  ESP_LOGD(TAG, "Setting LED speed to: %d", speed);
-  uint8_t payload[1] = { speed };
-  this->xmos_write_bytes(GPO_SERVICER_RESID, GPO_SERVICER_RESID_LED_SPEED, payload, 1);
-}
-
-void RespeakerXVF3800::set_led_brightness(uint8_t brightness) {
-  ESP_LOGD(TAG, "Setting LED brightness to: %d", brightness);
-  uint8_t payload[1] = { brightness };
-  this->xmos_write_bytes(GPO_SERVICER_RESID, GPO_SERVICER_RESID_LED_BRIGHTNESS, payload, 1);
-}
-
 void RespeakerXVF3800::set_led_ring(uint32_t *rgb_array) {
   ESP_LOGD(TAG, "Setting LED ring with individual colors");
   
@@ -526,12 +461,6 @@ void RespeakerXVF3800::set_led_ring(uint32_t *rgb_array) {
   }
   
   this->xmos_write_bytes(GPO_SERVICER_RESID, GPO_SERVICER_RESID_LED_RING_VALUE, payload, 48);
-}
-
-void RespeakerXVF3800::update_led_color() {
-  uint32_t color = (current_red_ << 16) | (current_green_ << 8) | current_blue_;
-  ESP_LOGD(TAG, "Updating LED color to RGB(%d,%d,%d) = 0x%06X", current_red_, current_green_, current_blue_, color);
-  this->set_led_color(color);
 }
 
 std::string RespeakerXVF3800::read_dfu_version() {
@@ -610,136 +539,6 @@ void DFUVersionTextSensor::update() {
   if (this->raw_state != version) {
     this->publish_state(version);
   }
-}
-
-// --- LED Effect Select Component ---
-void LEDEffectSelect::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LED Effect Select...");
-}
-
-void LEDEffectSelect::dump_config() {
-  LOG_SELECT("", "Respeaker LED Effect", this);
-}
-
-void LEDEffectSelect::control(const std::string &value) {
-  if (this->parent_ == nullptr) {
-    ESP_LOGW(TAG, "LEDEffectSelect parent not set");
-    return;
-  }
-  
-  uint8_t effect = 0;
-  if (value == "Off") effect = 0;
-  else if (value == "Breath") effect = 1;
-  else if (value == "Rainbow") effect = 2;
-  else if (value == "Solid") effect = 3;
-  else if (value == "Direction") effect = 4;
-  
-  ESP_LOGD(TAG, "Setting LED effect from select: %s -> %d", value.c_str(), effect);
-  this->parent_->set_led_effect(effect);
-  this->publish_state(value);
-}
-
-// --- LED Speed Number Component ---
-void LEDSpeedNumber::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LED Speed Number...");
-}
-
-void LEDSpeedNumber::dump_config() {
-  LOG_NUMBER("", "Respeaker LED Speed", this);
-}
-
-void LEDSpeedNumber::control(float value) {
-  if (this->parent_ == nullptr) {
-    ESP_LOGW(TAG, "LEDSpeedNumber parent not set");
-    return;
-  }
-  
-  uint8_t speed = (uint8_t)value;
-  ESP_LOGD(TAG, "Setting LED speed from number: %.0f -> %d", value, speed);
-  this->parent_->set_led_speed(speed);
-  this->publish_state(value);
-}
-
-// --- LED Brightness Number Component ---
-void LEDBrightnessNumber::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LED Brightness Number...");
-}
-
-void LEDBrightnessNumber::dump_config() {
-  LOG_NUMBER("", "Respeaker LED Brightness", this);
-}
-
-void LEDBrightnessNumber::control(float value) {
-  if (this->parent_ == nullptr) {
-    ESP_LOGW(TAG, "LEDBrightnessNumber parent not set");
-    return;
-  }
-  
-  uint8_t brightness = (uint8_t)value;
-  ESP_LOGD(TAG, "Setting LED brightness from number: %.0f -> %d", value, brightness);
-  this->parent_->set_led_brightness(brightness);
-  this->publish_state(value);
-}
-
-// --- LED Color Number Components (R, G, B) ---
-void LEDRedNumber::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LED Red Number...");
-}
-
-void LEDRedNumber::dump_config() {
-  LOG_NUMBER("", "Respeaker LED Red", this);
-}
-
-void LEDRedNumber::control(float value) {
-  if (this->parent_ == nullptr) {
-    ESP_LOGW(TAG, "LEDRedNumber parent not set");
-    return;
-  }
-  
-  this->parent_->current_red_ = (uint8_t)value;
-  ESP_LOGD(TAG, "Setting LED red from number: %.0f -> %d", value, (uint8_t)value);
-  this->parent_->update_led_color();
-  this->publish_state(value);
-}
-
-void LEDGreenNumber::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LED Green Number...");
-}
-
-void LEDGreenNumber::dump_config() {
-  LOG_NUMBER("", "Respeaker LED Green", this);
-}
-
-void LEDGreenNumber::control(float value) {
-  if (this->parent_ == nullptr) {
-    ESP_LOGW(TAG, "LEDGreenNumber parent not set");
-    return;
-  }
-  
-  this->parent_->current_green_ = (uint8_t)value;
-  ESP_LOGD(TAG, "Setting LED green from number: %.0f -> %d", value, (uint8_t)value);
-  this->parent_->update_led_color();
-  this->publish_state(value);
-}
-
-void LEDBlueNumber::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LED Blue Number...");
-}
-
-void LEDBlueNumber::dump_config() {
-  LOG_NUMBER("", "Respeaker LED Blue", this);
-}
-
-void LEDBlueNumber::control(float value) {
-  if (this->parent_ == nullptr) {
-    ESP_LOGW(TAG, "LEDBlueNumber parent not set");
-    return;
-  }
-  
-  this->parent_->current_blue_ = (uint8_t)value;
-  ESP_LOGD(TAG, "Setting LED blue from number: %.0f -> %d", value, (uint8_t)value);
-  this->parent_->update_led_color();
-  this->publish_state(value);
 }
 
 }  // namespace respeaker_xvf3800
