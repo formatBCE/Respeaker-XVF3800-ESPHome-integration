@@ -355,14 +355,9 @@ bool RespeakerXVF3800::read_gpo_values(uint8_t *buffer, uint8_t *status) {
                             GPO_SERVICER_RESID_GPO_READ_VALUES | 0x80, 
                             GPO_GPO_READ_NUM_BYTES + 1};
 
-  i2c::ErrorCode err = this->write(request, sizeof(request));
-  if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Failed to write GPO read command, error=%d", (int)err);
-    return false;
-  }
-
   uint8_t data[6] = {0};
-  err = this->read(data, sizeof(data));
+  i2c::ErrorCode err = this->write_read(request, sizeof(request), data, sizeof(data));
+  
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Failed to read GPO statuses, error=%d", (int)err);
     return false;
@@ -372,32 +367,6 @@ bool RespeakerXVF3800::read_gpo_values(uint8_t *buffer, uint8_t *status) {
   for (uint8_t i = 0; i < GPO_GPO_READ_NUM_BYTES; i++) {
     buffer[i] = data[i + 1];
   }
-
-  return true;
-}
-
-bool RespeakerXVF3800::read_gpio_status(uint32_t *gpio_status) {
-  const uint8_t request[] = {IO_CONFIG_SERVICER_RESID,
-                             IO_CONFIG_SERVICER_RESID_GPI_VALUE_ALL | 0x80,
-                             1 + 1};
-
-  uint8_t data[5] = {0};
-  i2c::ErrorCode err = this->write_read(request, sizeof(request), data, sizeof(data));
-  if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Failed to write/read GPIO status, error=%d", (int)err);
-    return false;
-  }
-
-  uint8_t status = data[0];
-  if (status != 0) {
-    ESP_LOGW(TAG, "GPIO read returned error status: %02X", status);
-    return false;
-  }
-
-  *gpio_status = ((uint32_t)data[4] << 24) |
-                 ((uint32_t)data[3] << 16) |
-                 ((uint32_t)data[2] << 8)  |
-                 ((uint32_t)data[1]);
 
   return true;
 }
@@ -428,6 +397,50 @@ void RespeakerXVF3800::write_mute_status(bool value) {
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error writing mute status to GPIO 30. Error code: %d", (int)err);
   }
+}
+
+int RespeakerXVF3800::read_led_beam_direction() {
+  const uint8_t aec_req[] = {AEC_SERVICER_RESID, 
+                             AEC_AZIMUTH_VALUES_CMD | 0x80, 
+                             17};  // 16 bytes + 1 status byte
+
+  uint8_t aec_resp[17];
+  
+  i2c::ErrorCode err = this->write_read(aec_req, sizeof(aec_req), aec_resp, sizeof(aec_resp));
+  if (err != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "Failed to read AEC azimuth values, error=%d", (int)err);
+    return -1;
+  }
+  
+  uint8_t status = aec_resp[0];
+  if (status != 0) {
+    //ESP_LOGW(TAG, "AEC azimuth read returned error status: %02X", status);
+    return -1;
+  }
+  
+  // Extract the fourth float (bytes 13-16)
+  float fourth_float;
+  memcpy(&fourth_float, &aec_resp[13], sizeof(float));
+  
+  ESP_LOGD(TAG, "AEC fourth float (raw): %f", fourth_float);
+  
+  // Convert from radians to degrees
+  float degrees = fourth_float * 180.0f / M_PI;
+  
+  // Map degrees to LED index (0-11)
+  // Each LED covers 30 degrees (360/12 = 30)
+  // LED 0 is at 0 degrees, LED 1 at 30 degrees, etc.
+  int led_index = (int)round(degrees / 30.0f);
+  
+  // Handle wrap-around and ensure valid range
+  if (led_index < 0) {
+    led_index += 12;
+  }
+  led_index = led_index % 12;
+  
+  ESP_LOGD(TAG, "AEC azimuth: %.1f degrees -> LED %d", degrees, led_index);
+  
+  return led_index;
 }
 
 void RespeakerXVF3800::xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *value, uint8_t write_byte_num) {
@@ -538,6 +551,32 @@ void DFUVersionTextSensor::update() {
   std::string version = this->parent_->read_dfu_version();
   if (this->raw_state != version) {
     this->publish_state(version);
+  }
+}
+
+// --- LEDBeamSensor Component ---
+void LEDBeamSensor::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up LED Beam Sensor...");
+  this->set_update_interval(500);
+}
+
+void LEDBeamSensor::dump_config() {
+  LOG_SENSOR("", "Respeaker LED Beam Direction", this);
+}
+
+void LEDBeamSensor::update() {
+  if (this->parent_ == nullptr) {
+    ESP_LOGW(TAG, "LEDBeamSensor parent not set");
+    return;
+  }
+  
+  int led_index = this->parent_->read_led_beam_direction();
+  if (led_index >= 0 && led_index <= 11) {
+    if (!this->has_state() || this->get_raw_state() != led_index) {
+      this->publish_state(led_index);
+    }
+  // } else {
+  //   ESP_LOGW(TAG, "Invalid LED beam direction: %d", led_index);
   }
 }
 

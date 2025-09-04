@@ -114,24 +114,9 @@ api:
         blue: float
       then:
         - lambda: |-
-            // Cache values to prevent unnecessary updates
-            static float last_r = -1, last_g = -1, last_b = -1;
-            float new_r = std::min(1.0f, std::max(0.0f, red));
-            float new_g = std::min(1.0f, std::max(0.0f, green));
-            float new_b = std::min(1.0f, std::max(0.0f, blue));
-            
-            if (new_r != last_r || new_g != last_g || new_b != last_b) {
-              id(led_ring_color_r) = new_r;
-              id(led_ring_color_g) = new_g;
-              id(led_ring_color_b) = new_b;
-              last_r = new_r; last_g = new_g; last_b = new_b;
-            }
-    - action: set_led_speed
-      variables:
-        speed: float
-      then:
-        - lambda: |-
-            id(led_ring_speed) = std::min(5.0f, std::max(0.1f, speed));
+            id(led_ring_color_r) = std::min(1.0f, std::max(0.0f, red));
+            id(led_ring_color_g) = std::min(1.0f, std::max(0.0f, green));
+            id(led_ring_color_b) = std::min(1.0f, std::max(0.0f, blue));
     - action: start_va
       then:
         - voice_assistant.start
@@ -251,6 +236,11 @@ globals:
     type: uint32_t
     restore_value: no
     initial_value: '0'
+  # Global variable to store the current animated position for the beam effect
+  - id: animated_beam_position
+    type: float
+    restore_value: no
+    initial_value: '0.0'
 
 # Time sync from Home Assistant
 time:
@@ -376,7 +366,7 @@ text_sensor:
     icon: mdi:clock
 
 interval:
-  - interval: 50ms  # Adjust based on desired animation smoothness
+  - interval: 50ms
     id: led_animation_interval
     then:
       - lambda: |-
@@ -399,11 +389,13 @@ interval:
             id(update_twinkle_effect).execute();
           } else if (effect == "timer_tick") {
             id(update_timer_tick_effect).execute();
+          } else if (effect == "led_beam") {
+            id(update_led_beam_effect).execute();
           }
 
 script:
   # =========================================================================
-  # == Centralized script to control all LED effects (Solid effect removed) ==
+  # == Centralized script to control all LED effects ==
   # =========================================================================
   - id: led_set_effect
     mode: restart
@@ -681,6 +673,73 @@ script:
             }
           }
           id(respeaker).set_led_ring(colors);
+
+  - id: update_led_beam_effect
+    then:
+      - lambda: |-
+          constexpr int NUM_LEDS = 12;
+          constexpr int FADE_LEDS = 3;
+          constexpr float TRANSITION_DURATION = 0.5f; // Duration of the smooth transition
+          uint32_t colors[NUM_LEDS] = {0};
+
+          uint32_t now = millis();
+          float dt = (now - id(last_led_update_time)) / 1000.0f;
+          id(last_led_update_time) = now;
+
+          if (id(beam_direction).has_state()) {
+            // CORRECTING THE OFFSET: Subtract 6 (180 degrees) from the sensor reading
+            float target_pos = ((int)id(beam_direction).state - 6 + NUM_LEDS) % NUM_LEDS;
+            float current_pos = id(animated_beam_position);
+
+            // Calculate the shortest path around the circle
+            float diff = target_pos - current_pos;
+            if (diff > NUM_LEDS / 2.0f) {
+              diff -= NUM_LEDS;
+            } else if (diff < -NUM_LEDS / 2.0f) {
+              diff += NUM_LEDS;
+            }
+
+            // Move current position towards target
+            if (abs(diff) > 0.01f) {
+              float move_speed = diff / TRANSITION_DURATION;
+              current_pos += move_speed * dt;
+            } else {
+              current_pos = target_pos;
+            }
+
+            // Handle wrap-around for the animated position
+            if (current_pos >= NUM_LEDS) current_pos -= NUM_LEDS;
+            if (current_pos < 0.0f) current_pos += NUM_LEDS;
+
+            id(animated_beam_position) = current_pos;
+
+            // Render the smoothed beam
+            float master_brightness = id(led_ring_brightness).state;
+            uint8_t base_r = (uint8_t)(id(led_ring_color_r) * 255.0f);
+            uint8_t base_g = (uint8_t)(id(led_ring_color_g) * 255.0f);
+            uint8_t base_b = (uint8_t)(id(led_ring_color_b) * 255.0f);
+
+            for (int i = 0; i < NUM_LEDS; i++) {
+              // Calculate circular distance from current LED to the animated position
+              float dist = abs(i - current_pos);
+              if (dist > NUM_LEDS / 2.0f) {
+                dist = NUM_LEDS - dist;
+              }
+
+              // Calculate brightness based on distance (linear falloff)
+              float brightness_factor = 1.0f - (dist / (FADE_LEDS + 1.0f));
+              brightness_factor = std::max(0.0f, brightness_factor);
+
+              if (brightness_factor > 0.0f) {
+                float final_brightness = brightness_factor * master_brightness;
+                uint8_t r = (uint8_t)(base_r * final_brightness);
+                uint8_t g = (uint8_t)(base_g * final_brightness);
+                uint8_t b = (uint8_t)(base_b * final_brightness);
+                colors[i] = (r << 16) | (g << 8) | b;
+              }
+            }
+          }
+          id(respeaker).set_led_ring(colors);
           
   # Master script controlling the LEDs, based on different conditions : initialization in progress, wifi and api connected and voice assistant phase.
   # For the sake of simplicity and re-usability, the script calls child scripts defined below.
@@ -826,24 +885,26 @@ script:
   # Script executed when the voice assistant is waiting for a command (After the wake word)
   - id: control_leds_voice_assistant_waiting_for_command_phase
     then:
+      - lambda: |
+          id(animated_beam_position) = id(beam_direction).state;
       - script.execute:
           id: led_set_effect
-          effect: "comet_cw"
-          r: 0.6
+          effect: "led_beam"
+          r: 0.5
           g: 0.0
-          b: 0.6
-          speed: 0.5
+          b: 0.5
+          speed: 0.0
 
   # Script executed when the voice assistant is listening to a command
   - id: control_leds_voice_assistant_listening_for_command_phase
     then:
       - script.execute:
           id: led_set_effect
-          effect: "comet_cw"
-          r: 0.6
+          effect: "led_beam"
+          r: 0.8
           g: 0.0
-          b: 0.6
-          speed: 2.0
+          b: 0.8
+          speed: 0.0
 
   # Script executed when the voice assistant is thinking to a command
   - id: control_leds_voice_assistant_thinking_phase
@@ -1308,16 +1369,14 @@ respeaker_xvf3800:
   dfu_version:
     name: "Firmware Version" 
     update_interval: 120s
+  led_beam_sensor:
+    name: "Voice Beam Direction"
+    id: beam_direction
+    internal: true
   firmware:
     url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/refs/heads/main/respeaker_xvf3800_i2s_master_dfu_firmware_v1.0.5_48k.bin
     version: "1.0.5"
     md5: be440ddef7d34571f01b74513005887f
-
-  # LED effect selector (Off, Breath, Rainbow, Solid, Direction)
-  # "Off" acts as the off state - no separate switch needed!
-  # led_effect:
-  #   name: "LED Inbuilt Effect"
-  #   icon: mdi:led-strip-variant
 
 audio_dac:
   - platform: aic3104

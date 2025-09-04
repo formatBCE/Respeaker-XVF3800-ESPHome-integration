@@ -2,6 +2,7 @@
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/number/number.h"
@@ -10,6 +11,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include <cstring>
 
 namespace esphome {
 namespace respeaker_xvf3800 {
@@ -34,9 +36,10 @@ const uint8_t GPO_SERVICER_RESID_GPO_READ_VALUES = 0;
 const uint8_t GPO_SERVICER_RESID_GPO_WRITE_VALUE = 1;
 const uint8_t GPO_SERVICER_RESID_LED_RING_VALUE = 18;
 const uint8_t GPO_GPO_READ_NUM_BYTES = 5;
-const uint8_t IO_CONFIG_SERVICER_RESID = 36;
-const uint8_t IO_CONFIG_SERVICER_RESID_GPI_READ_VALUES = 0;
-const uint8_t IO_CONFIG_SERVICER_RESID_GPI_VALUE_ALL = 6;
+
+// AEC Azimuth constants for LED beam sensor
+const uint8_t AEC_SERVICER_RESID = 33;
+const uint8_t AEC_AZIMUTH_VALUES_CMD = 75;
 
 const uint8_t RESID_LED = 0x0C;
 const uint8_t RESID_DFU_VERSION = 0xFE;
@@ -155,6 +158,18 @@ class DFUVersionTextSensor : public text_sensor::TextSensor, public PollingCompo
   RespeakerXVF3800 *parent_{nullptr};
 };
 
+// LEDBeamSensor class to read the active LED beam direction
+class LEDBeamSensor : public sensor::Sensor, public PollingComponent {
+ public:
+  void set_parent(RespeakerXVF3800 *parent) { parent_ = parent; }
+  void setup() override;
+  void update() override;
+  void dump_config() override;
+
+ protected:
+  RespeakerXVF3800 *parent_{nullptr};
+};
+
 // --- Main Hub Class ---
 
 class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
@@ -207,10 +222,14 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   void set_led_ring(uint32_t *rgb_array);
   
   std::string read_dfu_version();
+  
+  // Read LED beam direction (0-11)
+  int read_led_beam_direction();
 
   // Setters for child components
   void set_mute_switch(MuteSwitch *mute_switch) { mute_switch_ = mute_switch; }
   void set_dfu_version_sensor(DFUVersionTextSensor *dfu_version_sensor) { dfu_version_sensor_ = dfu_version_sensor; }
+  void set_led_beam_sensor(LEDBeamSensor *led_beam_sensor) { led_beam_sensor_ = led_beam_sensor; }
 
  protected:
 #ifdef USE_RESPEAKER_XVF3800_STATE_CALLBACK
@@ -258,6 +277,7 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   // Child components
   MuteSwitch *mute_switch_{nullptr};
   DFUVersionTextSensor *dfu_version_sensor_{nullptr};
+  LEDBeamSensor *led_beam_sensor_{nullptr};
   
   // Helper method for XMOS communication
   void xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *value, uint8_t write_byte_num);
