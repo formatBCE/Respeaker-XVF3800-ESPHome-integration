@@ -22,8 +22,8 @@ esphome:
   friendly_name: reSpeaker XVF3800 Assistant
   project: 
     name: formatbce.Respeaker XVF3800 Satellite
-    version: 2025.8.0
-  min_version: 2025.6.2
+    version: 2025.9.0
+  min_version: 2025.8.0
   on_boot:
     - priority: 375
       then:
@@ -687,8 +687,8 @@ script:
           id(last_led_update_time) = now;
 
           if (id(beam_direction).has_state()) {
-            // CORRECTING THE OFFSET: Subtract 6 (180 degrees) from the sensor reading
-            float target_pos = ((int)id(beam_direction).state - 6 + NUM_LEDS) % NUM_LEDS;
+            // CORRECTING THE OFFSET: add 5 from the sensor reading
+            float target_pos = ((int)id(beam_direction).state + 5) % NUM_LEDS;
             float current_pos = id(animated_beam_position);
 
             // Calculate the shortest path around the circle
