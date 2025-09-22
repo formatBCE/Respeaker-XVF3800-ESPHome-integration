@@ -17,6 +17,16 @@ substitutions:
   # Change this to true in case you ahve a hidden SSID at home.
   hidden_ssid: "false"
 
+   # Substitutions for audio files
+  mute_switch_on_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/mute_switch_on.flac
+  mute_switch_off_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/mute_switch_off.flac
+  timer_finished_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/timer_finished.flac
+  wake_word_triggered_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/wake_word_triggered.flac
+  center_button_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_press.flac
+  center_button_double_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_double_press.flac
+  center_button_triple_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_triple_press.flac
+  center_button_long_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_long_press.flac
+
 esphome:
   name: respeaker-xvf3800-assistant
   friendly_name: reSpeaker XVF3800 Assistant
@@ -114,9 +124,9 @@ api:
         blue: float
       then:
         - lambda: |-
-            id(user_led_ring_color_r) = std::min(1.0f, std::max(0.0f, red));
-            id(user_led_ring_color_g) = std::min(1.0f, std::max(0.0f, green));
-            id(user_led_ring_color_b) = std::min(1.0f, std::max(0.0f, blue));
+            id(user_led_ring_color_r) = std::min(255.0f, std::max(0.0f, red));
+            id(user_led_ring_color_g) = std::min(255.0f, std::max(0.0f, green));
+            id(user_led_ring_color_b) = std::min(255.0f, std::max(0.0f, blue));
         - select.set:
             id: user_led_color_preset
             option: "Custom"
@@ -175,7 +185,7 @@ globals:
   - id: user_led_ring_color_r
     type: float
     restore_value: yes
-    initial_value: '1.0'
+    initial_value: '255.0'
   - id: user_led_ring_color_g
     type: float
     restore_value: yes
@@ -183,11 +193,11 @@ globals:
   - id: user_led_ring_color_b
     type: float
     restore_value: yes
-    initial_value: '1.0'
+    initial_value: '255.0'
   - id: effect_color_r
     type: float
     restore_value: no
-    initial_value: '1.0'
+    initial_value: '255.0'
   - id: effect_color_g
     type: float
     restore_value: no
@@ -195,7 +205,7 @@ globals:
   - id: effect_color_b
     type: float
     restore_value: no
-    initial_value: '1.0'
+    initial_value: '255.0'
   - id: effect_brightness
     type: float
     restore_value: no
@@ -458,9 +468,9 @@ script:
           float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
           float breath_brightness = 0.5f * (1.0f + sinf(phase * 2.0f * M_PI)) * master_brightness;
 
-          uint8_t r = (uint8_t)(id(effect_color_r) * 255.0f * breath_brightness);
-          uint8_t g = (uint8_t)(id(effect_color_g) * 255.0f * breath_brightness);
-          uint8_t b = (uint8_t)(id(effect_color_b) * 255.0f * breath_brightness);
+          uint8_t r = (uint8_t)(id(effect_color_r) * breath_brightness);
+          uint8_t g = (uint8_t)(id(effect_color_g) * breath_brightness);
+          uint8_t b = (uint8_t)(id(effect_color_b) * breath_brightness);
           uint32_t current_color = (r << 16) | (g << 8) | b;
 
           uint32_t colors[12];
@@ -515,18 +525,18 @@ script:
           uint32_t colors[NUM_LEDS] = {0};
           float brightness = id(user_led_ring_brightness).state * id(effect_brightness);
 
-          uint8_t head_r = (uint8_t)(id(effect_color_r) * 255.0f * brightness);
-          uint8_t head_g = (uint8_t)(id(effect_color_g) * 255.0f * brightness);
-          uint8_t head_b = (uint8_t)(id(effect_color_b) * 255.0f * brightness);
+          uint8_t head_r = (uint8_t)(id(effect_color_r) * brightness);
+          uint8_t head_g = (uint8_t)(id(effect_color_g) * brightness);
+          uint8_t head_b = (uint8_t)(id(effect_color_b) * brightness);
 
           colors[head_index % NUM_LEDS] = (head_r << 16) | (head_g << 8) | head_b;
 
           for (int i = 1; i <= tail_length; i++) {
             float tail_factor = (float)i / (tail_length + 1);
             float tail_brightness = (1.0f - tail_factor) * brightness;
-            uint8_t r = (uint8_t)(id(effect_color_r) * 255.0f * tail_brightness);
-            uint8_t g = (uint8_t)(id(effect_color_g) * 255.0f * tail_brightness);
-            uint8_t b = (uint8_t)(id(effect_color_b) * 255.0f * tail_brightness);
+            uint8_t r = (uint8_t)(id(effect_color_r) * tail_brightness);
+            uint8_t g = (uint8_t)(id(effect_color_g) * tail_brightness);
+            uint8_t b = (uint8_t)(id(effect_color_b) * tail_brightness);
             int tail_index = (head_index - i + NUM_LEDS) % NUM_LEDS;
             colors[tail_index] = (r << 16) | (g << 8) | b;
           }
@@ -554,18 +564,18 @@ script:
           uint32_t colors[NUM_LEDS] = {0};
           float brightness = id(user_led_ring_brightness).state * id(effect_brightness);
 
-          uint8_t head_r = (uint8_t)(id(effect_color_r) * 255.0f * brightness);
-          uint8_t head_g = (uint8_t)(id(effect_color_g) * 255.0f * brightness);
-          uint8_t head_b = (uint8_t)(id(effect_color_b) * 255.0f * brightness);
+          uint8_t head_r = (uint8_t)(id(effect_color_r) * brightness);
+          uint8_t head_g = (uint8_t)(id(effect_color_g) * brightness);
+          uint8_t head_b = (uint8_t)(id(effect_color_b) * brightness);
 
           colors[head_index % NUM_LEDS] = (head_r << 16) | (head_g << 8) | head_b;
 
           for (int i = 1; i <= tail_length; i++) {
             float tail_factor = (float)i / (tail_length + 1);
             float tail_brightness = (1.0f - tail_factor) * brightness;
-            uint8_t r = (uint8_t)(id(effect_color_r) * 255.0f * tail_brightness);
-            uint8_t g = (uint8_t)(id(effect_color_g) * 255.0f * tail_brightness);
-            uint8_t b = (uint8_t)(id(effect_color_b) * 255.0f * tail_brightness);
+            uint8_t r = (uint8_t)(id(effect_color_r) * tail_brightness);
+            uint8_t g = (uint8_t)(id(effect_color_g) * tail_brightness);
+            uint8_t b = (uint8_t)(id(effect_color_b) * tail_brightness);
             int tail_index = (head_index + i) % NUM_LEDS;
             colors[tail_index] = (r << 16) | (g << 8) | b;
           }
@@ -610,15 +620,12 @@ script:
           // Render colors
           uint32_t colors[NUM_LEDS];
           float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
-          uint8_t base_r = (uint8_t)(id(effect_color_r) * 255.0f);
-          uint8_t base_g = (uint8_t)(id(effect_color_g) * 255.0f);
-          uint8_t base_b = (uint8_t)(id(effect_color_b) * 255.0f);
 
           for (int i = 0; i < NUM_LEDS; i++) {
             float current_led_brightness = led_brightness[i] * master_brightness;
-            uint8_t r = (uint8_t)(base_r * current_led_brightness);
-            uint8_t g = (uint8_t)(base_g * current_led_brightness);
-            uint8_t b = (uint8_t)(base_b * current_led_brightness);
+            uint8_t r = (uint8_t)(id(effect_color_r) * current_led_brightness);
+            uint8_t g = (uint8_t)(id(effect_color_g) * current_led_brightness);
+            uint8_t b = (uint8_t)(id(effect_color_b) * current_led_brightness);
             colors[i] = (r << 16) | (g << 8) | b;
           }
           id(respeaker).set_led_ring(colors);
@@ -644,18 +651,15 @@ script:
           float timer_ratio = (float)NUM_LEDS * seconds_left / std::max(total_seconds, (uint32_t)1);
           
           float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
-          uint8_t base_r = (uint8_t)(id(effect_color_r) * 255.0f);
-          uint8_t base_g = (uint8_t)(id(effect_color_g) * 255.0f);
-          uint8_t base_b = (uint8_t)(id(effect_color_b) * 255.0f);
 
           for (int i = 0; i < NUM_LEDS; i++) {
             float bar_brightness = clamp(timer_ratio - i, 0.0f, 1.0f);
             if (bar_brightness > 0.0f) {
               float tick_dip = (i == tick_index) ? 0.9f : 1.0f;
               float final_brightness = bar_brightness * tick_dip * master_brightness;
-              uint8_t r = (uint8_t)(base_r * final_brightness);
-              uint8_t g = (uint8_t)(base_g * final_brightness);
-              uint8_t b = (uint8_t)(base_b * final_brightness);
+              uint8_t r = (uint8_t)(id(effect_color_r) * final_brightness);
+              uint8_t g = (uint8_t)(id(effect_color_g) * final_brightness);
+              uint8_t b = (uint8_t)(id(effect_color_b) * final_brightness);
               colors[i] = (r << 16) | (g << 8) | b;
             }
           }
@@ -678,16 +682,13 @@ script:
             } else {
               float num_leds_on = volume * NUM_LEDS;
               float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
-              uint8_t base_r = (uint8_t)(id(effect_color_r) * 255.0f);
-              uint8_t base_g = (uint8_t)(id(effect_color_g) * 255.0f);
-              uint8_t base_b = (uint8_t)(id(effect_color_b) * 255.0f);
 
               for (int i = 0; i < NUM_LEDS; i++) {
                 float brightness = clamp(num_leds_on - i, 0.0f, 1.0f);
                 if (brightness > 0.0f) {
-                  uint8_t r = (uint8_t)(base_r * brightness * master_brightness);
-                  uint8_t g = (uint8_t)(base_g * brightness * master_brightness);
-                  uint8_t b = (uint8_t)(base_b * brightness * master_brightness);
+                  uint8_t r = (uint8_t)(id(effect_color_r) * brightness * master_brightness);
+                  uint8_t g = (uint8_t)(id(effect_color_g) * brightness * master_brightness);
+                  uint8_t b = (uint8_t)(id(effect_color_b) * brightness * master_brightness);
                   colors[i] = (r << 16) | (g << 8) | b;
                 }
               }
@@ -736,10 +737,7 @@ script:
 
             // Render the smoothed beam
             float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
-            uint8_t base_r = (uint8_t)(id(effect_color_r) * 255.0f);
-            uint8_t base_g = (uint8_t)(id(effect_color_g) * 255.0f);
-            uint8_t base_b = (uint8_t)(id(effect_color_b) * 255.0f);
-
+           
             for (int i = 0; i < NUM_LEDS; i++) {
               // Calculate circular distance from current LED to the animated position
               float dist = abs(i - current_pos);
@@ -753,9 +751,9 @@ script:
 
               if (brightness_factor > 0.0f) {
                 float final_brightness = brightness_factor * master_brightness;
-                uint8_t r = (uint8_t)(base_r * final_brightness);
-                uint8_t g = (uint8_t)(base_g * final_brightness);
-                uint8_t b = (uint8_t)(base_b * final_brightness);
+                uint8_t r = (uint8_t)(id(effect_color_r) * final_brightness);
+                uint8_t g = (uint8_t)(id(effect_color_g) * final_brightness);
+                uint8_t b = (uint8_t)(id(effect_color_b) * final_brightness);
                 colors[i] = (r << 16) | (g << 8) | b;
               }
             }
@@ -1330,30 +1328,31 @@ media_player:
           - delay: 100ms  # Debounce
           - script.execute: control_leds_volume_changed
     files:
-      - id: mute_switch_on_sound
-        file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/mute_switch_on.flac
-      - id: mute_switch_off_sound
-        file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/mute_switch_off.flac
-      - id: timer_finished_sound
-        file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/timer_finished.flac
-      - id: wake_word_triggered_sound
-        file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/wake_word_triggered.flac
-      - id: error_cloud_expired
-        file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/error_cloud_expired.mp3
       # - id: center_button_press_sound
-      #   file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_press.flac
+      #   file: ${center_button_press_sound_file}
       # - id: center_button_double_press_sound
-      #   file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_double_press.flac
+      #   file: ${center_button_double_press_sound_file}
       # - id: center_button_triple_press_sound
-      #   file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_triple_press.flac
+      #   file: ${center_button_triple_press_sound_file}
       # - id: center_button_long_press_sound
-      #   file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_long_press.flac
+      #   file: ${center_button_long_press_sound_file}
       # - id: factory_reset_initiated_sound
       #   file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_initiated.mp3
       # - id: factory_reset_cancelled_sound
       #   file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_cancelled.mp3
       # - id: factory_reset_confirmed_sound
       #   file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_confirmed.mp3
+      - id: mute_switch_on_sound
+        file: ${mute_switch_on_sound_file}
+      - id: mute_switch_off_sound
+        file: ${mute_switch_off_sound_file}
+      - id: timer_finished_sound
+        file: ${timer_finished_sound_file}
+      - id: wake_word_triggered_sound
+        file: ${wake_word_triggered_sound_file}
+      - id: error_cloud_expired
+        file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/error_cloud_expired.mp3
+
 
 external_components:
   - source:
@@ -1550,37 +1549,37 @@ select:
     on_value:
       - lambda: |-
           if (x == "Purple") {
-            id(user_led_ring_color_r) = 1.0f;
+            id(user_led_ring_color_r) = 255.0f;
             id(user_led_ring_color_g) = 0.0f;
-            id(user_led_ring_color_b) = 1.0f;
+            id(user_led_ring_color_b) = 255.0f;
           } else if (x == "Blue") {
             id(user_led_ring_color_r) = 0.0f;
             id(user_led_ring_color_g) = 0.0f;
-            id(user_led_ring_color_b) = 1.0f;
+            id(user_led_ring_color_b) = 255.0f;
           } else if (x == "Green") {
             id(user_led_ring_color_r) = 0.0f;
-            id(user_led_ring_color_g) = 1.0f;
+            id(user_led_ring_color_g) = 255.0f;
             id(user_led_ring_color_b) = 0.0f;
           } else if (x == "Yellow") {
-            id(user_led_ring_color_r) = 1.0f;
-            id(user_led_ring_color_g) = 1.0f;
+            id(user_led_ring_color_r) = 255.0f;
+            id(user_led_ring_color_g) = 255.0f;
             id(user_led_ring_color_b) = 0.0f;
           } else if (x == "Cyan") {
             id(user_led_ring_color_r) = 0.0f;
-            id(user_led_ring_color_g) = 1.0f;
-            id(user_led_ring_color_b) = 1.0f;
+            id(user_led_ring_color_g) = 255.0f;
+            id(user_led_ring_color_b) = 255.0f;
           } else if (x == "White") {
-            id(user_led_ring_color_r) = 1.0f;
-            id(user_led_ring_color_g) = 1.0f;
-            id(user_led_ring_color_b) = 1.0f;
+            id(user_led_ring_color_r) = 255.0f;
+            id(user_led_ring_color_g) = 255.0f;
+            id(user_led_ring_color_b) = 255.0f;
           } else if (x == "Orange") {
-            id(user_led_ring_color_r) = 1.0f;
-            id(user_led_ring_color_g) = 0.5f;
+            id(user_led_ring_color_r) = 255.0f;
+            id(user_led_ring_color_g) = 128.0f;
             id(user_led_ring_color_b) = 0.0f;
           } else if (x == "Pink") {
-            id(user_led_ring_color_r) = 1.0f;
-            id(user_led_ring_color_g) = 0.2f;
-            id(user_led_ring_color_b) = 0.8f;
+            id(user_led_ring_color_r) = 255.0f;
+            id(user_led_ring_color_g) = 50.0f;
+            id(user_led_ring_color_b) = 200.0f;
           }
 
 voice_assistant:
