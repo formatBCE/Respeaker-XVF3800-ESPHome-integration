@@ -114,9 +114,12 @@ api:
         blue: float
       then:
         - lambda: |-
-            id(led_ring_color_r) = std::min(1.0f, std::max(0.0f, red));
-            id(led_ring_color_g) = std::min(1.0f, std::max(0.0f, green));
-            id(led_ring_color_b) = std::min(1.0f, std::max(0.0f, blue));
+            id(user_led_ring_color_r) = std::min(1.0f, std::max(0.0f, red));
+            id(user_led_ring_color_g) = std::min(1.0f, std::max(0.0f, green));
+            id(user_led_ring_color_b) = std::min(1.0f, std::max(0.0f, blue));
+        - select.set:
+            id: user_led_color_preset
+            option: "Custom"
     - action: start_va
       then:
         - voice_assistant.start
@@ -169,19 +172,35 @@ psram:
   speed: 80MHz
 
 globals:
-  - id: led_ring_color_r
+  - id: user_led_ring_color_r
     type: float
     restore_value: yes
     initial_value: '1.0'
-  - id: led_ring_color_g
+  - id: user_led_ring_color_g
     type: float
     restore_value: yes
     initial_value: '0.0'
-  - id: led_ring_color_b
+  - id: user_led_ring_color_b
     type: float
     restore_value: yes
     initial_value: '1.0'
-  - id: led_ring_speed
+  - id: effect_color_r
+    type: float
+    restore_value: no
+    initial_value: '1.0'
+  - id: effect_color_g
+    type: float
+    restore_value: no
+    initial_value: '0.0'
+  - id: effect_color_b
+    type: float
+    restore_value: no
+    initial_value: '1.0'
+  - id: effect_brightness
+    type: float
+    restore_value: no
+    initial_value: '1.0'
+  - id: effect_speed
     type: float
     restore_value: yes
     initial_value: "0.05"   # effects cycle per second (adjust as needed)
@@ -327,7 +346,7 @@ binary_sensor:
 
 number:
   - platform: template
-    id: led_ring_brightness
+    id: user_led_ring_brightness
     name: "LED Ring Brightness"
     icon: mdi:brightness-6
     entity_category: config
@@ -405,13 +424,15 @@ script:
       g: float
       b: float
       speed: float
+      brightness: float
     then:
       - lambda: |-
           // Update global variables with the new parameters
-          id(led_ring_color_r) = r;
-          id(led_ring_color_g) = g;
-          id(led_ring_color_b) = b;
-          id(led_ring_speed) = speed;
+          id(effect_color_r) = r;
+          id(effect_color_g) = g;
+          id(effect_color_b) = b;
+          id(effect_speed) = speed;
+          id(effect_brightness) = brightness;
           id(current_led_effect) = effect;
 
           // Handle the two types of effects: Off and Animated
@@ -431,15 +452,15 @@ script:
           float dt = (now - id(last_led_update_time)) / 1000.0f;
           id(last_led_update_time) = now;
 
-          phase += dt * id(led_ring_speed);
+          phase += dt * id(effect_speed);
           while (phase >= 1.0f) phase -= 1.0f;
 
-          float master_brightness = id(led_ring_brightness).state;
+          float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
           float breath_brightness = 0.5f * (1.0f + sinf(phase * 2.0f * M_PI)) * master_brightness;
 
-          uint8_t r = (uint8_t)(id(led_ring_color_r) * 255.0f * breath_brightness);
-          uint8_t g = (uint8_t)(id(led_ring_color_g) * 255.0f * breath_brightness);
-          uint8_t b = (uint8_t)(id(led_ring_color_b) * 255.0f * breath_brightness);
+          uint8_t r = (uint8_t)(id(effect_color_r) * 255.0f * breath_brightness);
+          uint8_t g = (uint8_t)(id(effect_color_g) * 255.0f * breath_brightness);
+          uint8_t b = (uint8_t)(id(effect_color_b) * 255.0f * breath_brightness);
           uint32_t current_color = (r << 16) | (g << 8) | b;
 
           uint32_t colors[12];
@@ -454,13 +475,13 @@ script:
           float dt = (now - id(last_led_update_time)) / 1000.0f;
           id(last_led_update_time) = now;
 
-          hue_offset += dt * id(led_ring_speed);
+          hue_offset += dt * id(effect_speed);
           if (hue_offset >= 1.0f) hue_offset -= 1.0f;
 
           constexpr int NUM_LEDS = 12;
           constexpr float HUE_STEP = 1.0f / NUM_LEDS;
           uint32_t colors[NUM_LEDS];
-          float brightness = id(led_ring_brightness).state;
+          float brightness = id(user_led_ring_brightness).state * id(effect_brightness);
 
           float current_hue = hue_offset;
           for (int i = 0; i < NUM_LEDS; i++) {
@@ -483,29 +504,29 @@ script:
           constexpr int NUM_LEDS = 12;
           constexpr int BASE_TAIL = 3;
 
-          float leds_per_sec = id(led_ring_speed) * NUM_LEDS;
+          float leds_per_sec = id(effect_speed) * NUM_LEDS;
           comet_pos += dt * leds_per_sec;
           while (comet_pos >= NUM_LEDS) comet_pos -= NUM_LEDS;
 
           int head_index = (int)comet_pos;
-          int tail_length = BASE_TAIL + (int)(id(led_ring_speed));
+          int tail_length = BASE_TAIL + (int)(id(effect_speed));
           if (tail_length > NUM_LEDS - 1) tail_length = NUM_LEDS - 1;
 
           uint32_t colors[NUM_LEDS] = {0};
-          float brightness = id(led_ring_brightness).state;
+          float brightness = id(user_led_ring_brightness).state * id(effect_brightness);
 
-          uint8_t head_r = (uint8_t)(id(led_ring_color_r) * 255.0f * brightness);
-          uint8_t head_g = (uint8_t)(id(led_ring_color_g) * 255.0f * brightness);
-          uint8_t head_b = (uint8_t)(id(led_ring_color_b) * 255.0f * brightness);
+          uint8_t head_r = (uint8_t)(id(effect_color_r) * 255.0f * brightness);
+          uint8_t head_g = (uint8_t)(id(effect_color_g) * 255.0f * brightness);
+          uint8_t head_b = (uint8_t)(id(effect_color_b) * 255.0f * brightness);
 
           colors[head_index % NUM_LEDS] = (head_r << 16) | (head_g << 8) | head_b;
 
           for (int i = 1; i <= tail_length; i++) {
             float tail_factor = (float)i / (tail_length + 1);
             float tail_brightness = (1.0f - tail_factor) * brightness;
-            uint8_t r = (uint8_t)(id(led_ring_color_r) * 255.0f * tail_brightness);
-            uint8_t g = (uint8_t)(id(led_ring_color_g) * 255.0f * tail_brightness);
-            uint8_t b = (uint8_t)(id(led_ring_color_b) * 255.0f * tail_brightness);
+            uint8_t r = (uint8_t)(id(effect_color_r) * 255.0f * tail_brightness);
+            uint8_t g = (uint8_t)(id(effect_color_g) * 255.0f * tail_brightness);
+            uint8_t b = (uint8_t)(id(effect_color_b) * 255.0f * tail_brightness);
             int tail_index = (head_index - i + NUM_LEDS) % NUM_LEDS;
             colors[tail_index] = (r << 16) | (g << 8) | b;
           }
@@ -522,29 +543,29 @@ script:
           constexpr int NUM_LEDS = 12;
           constexpr int BASE_TAIL = 3;
 
-          float leds_per_sec = id(led_ring_speed) * NUM_LEDS;
+          float leds_per_sec = id(effect_speed) * NUM_LEDS;
           comet_pos -= dt * leds_per_sec;
           while (comet_pos < 0.0f) comet_pos += NUM_LEDS;
 
           int head_index = (int)comet_pos;
-          int tail_length = BASE_TAIL + (int)(id(led_ring_speed));
+          int tail_length = BASE_TAIL + (int)(id(effect_speed));
           if (tail_length > NUM_LEDS - 1) tail_length = NUM_LEDS - 1;
 
           uint32_t colors[NUM_LEDS] = {0};
-          float brightness = id(led_ring_brightness).state;
+          float brightness = id(user_led_ring_brightness).state * id(effect_brightness);
 
-          uint8_t head_r = (uint8_t)(id(led_ring_color_r) * 255.0f * brightness);
-          uint8_t head_g = (uint8_t)(id(led_ring_color_g) * 255.0f * brightness);
-          uint8_t head_b = (uint8_t)(id(led_ring_color_b) * 255.0f * brightness);
+          uint8_t head_r = (uint8_t)(id(effect_color_r) * 255.0f * brightness);
+          uint8_t head_g = (uint8_t)(id(effect_color_g) * 255.0f * brightness);
+          uint8_t head_b = (uint8_t)(id(effect_color_b) * 255.0f * brightness);
 
           colors[head_index % NUM_LEDS] = (head_r << 16) | (head_g << 8) | head_b;
 
           for (int i = 1; i <= tail_length; i++) {
             float tail_factor = (float)i / (tail_length + 1);
             float tail_brightness = (1.0f - tail_factor) * brightness;
-            uint8_t r = (uint8_t)(id(led_ring_color_r) * 255.0f * tail_brightness);
-            uint8_t g = (uint8_t)(id(led_ring_color_g) * 255.0f * tail_brightness);
-            uint8_t b = (uint8_t)(id(led_ring_color_b) * 255.0f * tail_brightness);
+            uint8_t r = (uint8_t)(id(effect_color_r) * 255.0f * tail_brightness);
+            uint8_t g = (uint8_t)(id(effect_color_g) * 255.0f * tail_brightness);
+            uint8_t b = (uint8_t)(id(effect_color_b) * 255.0f * tail_brightness);
             int tail_index = (head_index + i) % NUM_LEDS;
             colors[tail_index] = (r << 16) | (g << 8) | b;
           }
@@ -576,7 +597,7 @@ script:
           }
 
           // Start new twinkles
-          float twinkle_chance = dt * id(led_ring_speed);
+          float twinkle_chance = dt * id(effect_speed);
           if (random_float() < twinkle_chance) {
             int led_to_start = (int)(random_float() * NUM_LEDS);
             if (led_fade_speed[led_to_start] == 0.0f) {
@@ -588,10 +609,10 @@ script:
 
           // Render colors
           uint32_t colors[NUM_LEDS];
-          float master_brightness = id(led_ring_brightness).state;
-          uint8_t base_r = (uint8_t)(id(led_ring_color_r) * 255.0f);
-          uint8_t base_g = (uint8_t)(id(led_ring_color_g) * 255.0f);
-          uint8_t base_b = (uint8_t)(id(led_ring_color_b) * 255.0f);
+          float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+          uint8_t base_r = (uint8_t)(id(effect_color_r) * 255.0f);
+          uint8_t base_g = (uint8_t)(id(effect_color_g) * 255.0f);
+          uint8_t base_b = (uint8_t)(id(effect_color_b) * 255.0f);
 
           for (int i = 0; i < NUM_LEDS; i++) {
             float current_led_brightness = led_brightness[i] * master_brightness;
@@ -622,10 +643,10 @@ script:
 
           float timer_ratio = (float)NUM_LEDS * seconds_left / std::max(total_seconds, (uint32_t)1);
           
-          float master_brightness = id(led_ring_brightness).state;
-          uint8_t base_r = (uint8_t)(id(led_ring_color_r) * 255.0f);
-          uint8_t base_g = (uint8_t)(id(led_ring_color_g) * 255.0f);
-          uint8_t base_b = (uint8_t)(id(led_ring_color_b) * 255.0f);
+          float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+          uint8_t base_r = (uint8_t)(id(effect_color_r) * 255.0f);
+          uint8_t base_g = (uint8_t)(id(effect_color_g) * 255.0f);
+          uint8_t base_b = (uint8_t)(id(effect_color_b) * 255.0f);
 
           for (int i = 0; i < NUM_LEDS; i++) {
             float bar_brightness = clamp(timer_ratio - i, 0.0f, 1.0f);
@@ -656,10 +677,10 @@ script:
               colors[6] = mute_color;
             } else {
               float num_leds_on = volume * NUM_LEDS;
-              float master_brightness = id(led_ring_brightness).state;
-              uint8_t base_r = (uint8_t)(id(led_ring_color_r) * 255.0f);
-              uint8_t base_g = (uint8_t)(id(led_ring_color_g) * 255.0f);
-              uint8_t base_b = (uint8_t)(id(led_ring_color_b) * 255.0f);
+              float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+              uint8_t base_r = (uint8_t)(id(effect_color_r) * 255.0f);
+              uint8_t base_g = (uint8_t)(id(effect_color_g) * 255.0f);
+              uint8_t base_b = (uint8_t)(id(effect_color_b) * 255.0f);
 
               for (int i = 0; i < NUM_LEDS; i++) {
                 float brightness = clamp(num_leds_on - i, 0.0f, 1.0f);
@@ -714,10 +735,10 @@ script:
             id(animated_beam_position) = current_pos;
 
             // Render the smoothed beam
-            float master_brightness = id(led_ring_brightness).state;
-            uint8_t base_r = (uint8_t)(id(led_ring_color_r) * 255.0f);
-            uint8_t base_g = (uint8_t)(id(led_ring_color_g) * 255.0f);
-            uint8_t base_b = (uint8_t)(id(led_ring_color_b) * 255.0f);
+            float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+            uint8_t base_r = (uint8_t)(id(effect_color_r) * 255.0f);
+            uint8_t base_g = (uint8_t)(id(effect_color_g) * 255.0f);
+            uint8_t base_b = (uint8_t)(id(effect_color_b) * 255.0f);
 
             for (int i = 0; i < NUM_LEDS; i++) {
               // Calculate circular distance from current LED to the animated position
@@ -836,6 +857,7 @@ script:
           g: 0.0
           b: 0.0
           speed: 0.5
+          brightness: 0.6
 
   # Script executed during Improv BLE
   - id: control_leds_improv_ble_state
@@ -847,6 +869,7 @@ script:
           g: 0.89
           b: 0.71
           speed: 10.0
+          brightness: 0.8
 
   # Script executed during initialization
   - id: control_leds_init_state
@@ -862,6 +885,7 @@ script:
                 g: 0.73
                 b: 0.95
                 speed: 20.0
+                brightness: 1.0
           else:
             - script.execute:
                 id: led_set_effect
@@ -870,6 +894,7 @@ script:
                 g: 0.73
                 b: 0.95
                 speed: 4.0
+                brightness: 0.6
 
   # Script executed when the device has no connection to Home Assistant
   - id: control_leds_no_ha_connection_state
@@ -881,6 +906,7 @@ script:
           g: 0.0
           b: 0.0
           speed: 10.0
+          brightness: 0.4
 
   # Script executed when the voice assistant is waiting for a command (After the wake word)
   - id: control_leds_voice_assistant_waiting_for_command_phase
@@ -890,10 +916,11 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "led_beam"
-          r: 0.5
-          g: 0.0
-          b: 0.5
+          r: !lambda return id(user_led_ring_color_r);
+          g: !lambda return id(user_led_ring_color_g);
+          b: !lambda return id(user_led_ring_color_b);
           speed: 0.0
+          brightness: 0.8
 
   # Script executed when the voice assistant is listening to a command
   - id: control_leds_voice_assistant_listening_for_command_phase
@@ -901,10 +928,11 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "led_beam"
-          r: 0.8
-          g: 0.0
-          b: 0.8
+          r: !lambda return id(user_led_ring_color_r);
+          g: !lambda return id(user_led_ring_color_g);
+          b: !lambda return id(user_led_ring_color_b);
           speed: 0.0
+          brightness: 1.0
 
   # Script executed when the voice assistant is thinking to a command
   - id: control_leds_voice_assistant_thinking_phase
@@ -912,10 +940,11 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "breathe"
-          r: 0.6
-          g: 0.0
-          b: 0.6
+          r: !lambda return id(user_led_ring_color_r);
+          g: !lambda return id(user_led_ring_color_g);
+          b: !lambda return id(user_led_ring_color_b);
           speed: 1.0
+          brightness: 0.6
 
   # Script executed when the voice assistant is replying to a command
   - id: control_leds_voice_assistant_replying_phase
@@ -923,10 +952,11 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "comet_ccw"
-          r: 0.6
-          g: 0.0
-          b: 0.6
+          r: !lambda return id(user_led_ring_color_r);
+          g: !lambda return id(user_led_ring_color_g);
+          b: !lambda return id(user_led_ring_color_b);
           speed: 1.0
+          brightness: 0.8
 
   # Script executed when the voice assistant is in error
   - id: control_leds_voice_assistant_error_phase
@@ -938,6 +968,7 @@ script:
           g: 0.0
           b: 0.0
           speed: 3.0
+          brightness: 0.8
 
   # Script executed when the voice assistant is not ready
   - id: control_leds_voice_assistant_not_ready_phase
@@ -949,6 +980,7 @@ script:
           g: 0.0
           b: 0.0
           speed: 5.0
+          brightness: 0.8
 
   # Script executed when the volume is changed
   - id: control_leds_volume_changed
@@ -966,10 +998,11 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "breathe"
-          r: 0.6
-          g: 0.0
-          b: 0.6
+          r: !lambda return id(user_led_ring_color_r);
+          g: !lambda return id(user_led_ring_color_g);
+          b: !lambda return id(user_led_ring_color_b);
           speed: 5.0
+          brightness: 1.0
 
   # Script executed when the timer is ticking, to control the LEDs
   - id: control_leds_timer_ticking
@@ -977,10 +1010,11 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "timer_tick"
-          r: 0.6
-          g: 0.0
-          b: 0.6
+          r: !lambda return id(user_led_ring_color_r);
+          g: !lambda return id(user_led_ring_color_g);
+          b: !lambda return id(user_led_ring_color_b);
           speed: 1.0
+          brightness: 0.7
 
   # Script executed when the voice assistant is idle (waiting for a wake word)
   - id: control_leds_voice_assistant_idle_phase
@@ -992,6 +1026,7 @@ script:
           g: 0.0
           b: 0.0
           speed: 0.0
+          brightness: 0.0
 
   # Script executed when the timer is ringing, to playback sounds.
   - id: ring_timer
@@ -1494,6 +1529,59 @@ select:
       then:
         - lambda: |-
             id(saved_alarm_action) = x;
+  - platform: template
+    name: "LED Ring Color Preset"
+    id: user_led_color_preset
+    icon: "mdi:palette"
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_option: "Custom"
+    options:
+      - "Purple"
+      - "Blue" 
+      - "Green"
+      - "Yellow"
+      - "Cyan"
+      - "White"
+      - "Orange"
+      - "Pink"
+      - "Custom"
+    on_value:
+      - lambda: |-
+          if (x == "Purple") {
+            id(user_led_ring_color_r) = 1.0f;
+            id(user_led_ring_color_g) = 0.0f;
+            id(user_led_ring_color_b) = 1.0f;
+          } else if (x == "Blue") {
+            id(user_led_ring_color_r) = 0.0f;
+            id(user_led_ring_color_g) = 0.0f;
+            id(user_led_ring_color_b) = 1.0f;
+          } else if (x == "Green") {
+            id(user_led_ring_color_r) = 0.0f;
+            id(user_led_ring_color_g) = 1.0f;
+            id(user_led_ring_color_b) = 0.0f;
+          } else if (x == "Yellow") {
+            id(user_led_ring_color_r) = 1.0f;
+            id(user_led_ring_color_g) = 1.0f;
+            id(user_led_ring_color_b) = 0.0f;
+          } else if (x == "Cyan") {
+            id(user_led_ring_color_r) = 0.0f;
+            id(user_led_ring_color_g) = 1.0f;
+            id(user_led_ring_color_b) = 1.0f;
+          } else if (x == "White") {
+            id(user_led_ring_color_r) = 1.0f;
+            id(user_led_ring_color_g) = 1.0f;
+            id(user_led_ring_color_b) = 1.0f;
+          } else if (x == "Orange") {
+            id(user_led_ring_color_r) = 1.0f;
+            id(user_led_ring_color_g) = 0.5f;
+            id(user_led_ring_color_b) = 0.0f;
+          } else if (x == "Pink") {
+            id(user_led_ring_color_r) = 1.0f;
+            id(user_led_ring_color_g) = 0.2f;
+            id(user_led_ring_color_b) = 0.8f;
+          }
 
 voice_assistant:
   id: va
