@@ -23,7 +23,7 @@ esphome:
   project: 
     name: formatbce.Respeaker XVF3800 Satellite
     version: 2025.9.0
-  min_version: 2025.8.0
+  min_version: 2025.9.0
   on_boot:
     - priority: 375
       then:
