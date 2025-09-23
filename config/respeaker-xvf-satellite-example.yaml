@@ -851,7 +851,7 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "breathe"
-          r: 0.7
+          r: 200.0
           g: 0.0
           b: 0.0
           speed: 0.5
@@ -863,9 +863,9 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "twinkle"
-          r: 1.0
-          g: 0.89
-          b: 0.71
+          r: 255.0
+          g: 200.0
+          b: 160.0
           speed: 10.0
           brightness: 0.8
 
@@ -879,18 +879,18 @@ script:
             - script.execute:
                 id: led_set_effect
                 effect: "twinkle"
-                r: 0.09
-                g: 0.73
-                b: 0.95
+                r: 20.0
+                g: 200.0
+                b: 250.0
                 speed: 20.0
                 brightness: 1.0
           else:
             - script.execute:
                 id: led_set_effect
                 effect: "twinkle"
-                r: 0.09
-                g: 0.73
-                b: 0.95
+                r: 20.0
+                g: 200.0
+                b: 250.0
                 speed: 4.0
                 brightness: 0.6
 
@@ -900,7 +900,7 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "twinkle"
-          r: 1.0
+          r: 255.0
           g: 0.0
           b: 0.0
           speed: 10.0
@@ -962,7 +962,7 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "breathe"
-          r: 1.0
+          r: 255.0
           g: 0.0
           b: 0.0
           speed: 3.0
@@ -974,7 +974,7 @@ script:
       - script.execute:
           id: led_set_effect
           effect: "twinkle"
-          r: 1.0
+          r: 255.0
           g: 0.0
           b: 0.0
           speed: 5.0
