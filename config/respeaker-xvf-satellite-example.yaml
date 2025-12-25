@@ -1408,9 +1408,9 @@ respeaker_xvf3800:
     id: beam_direction
     internal: true
   firmware:
-    url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/refs/heads/main/respeaker_xvf3800_i2s_master_dfu_firmware_v1.0.5_48k.bin
-    version: "1.0.5"
-    md5: be440ddef7d34571f01b74513005887f
+    url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/refs/heads/v1.0.7/application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin
+    version: "1.0.7"
+    md5: 043a848f544ff2c7265ac19685daf5de
 
 audio_dac:
   - platform: aic3104
