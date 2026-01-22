@@ -549,7 +549,7 @@ void DFUVersionTextSensor::update() {
   }
   
   std::string version = this->parent_->read_dfu_version();
-  if (this->raw_state != version) {
+  if (this->get_raw_state() != version) {
     this->publish_state(version);
   }
 }
