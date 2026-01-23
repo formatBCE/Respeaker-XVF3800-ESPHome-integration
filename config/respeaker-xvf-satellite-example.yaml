@@ -410,6 +410,9 @@ interval:
     then:
       - lambda: |-
           uint32_t now = millis();
+          if (id(current_led_effect) != "off" || id(volume_display_active)) {
+            id(last_led_activity_time) = now;
+          }
           if ((id(current_led_effect) != "off" || id(volume_display_active)) &&
               (now - id(last_led_activity_time) > 10000)) {
             id(volume_display_active) = false;
