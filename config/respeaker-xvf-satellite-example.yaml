@@ -269,6 +269,10 @@ globals:
     type: uint32_t
     restore_value: no
     initial_value: '0'
+  - id: last_led_activity_time
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
   # Global variable to store the current animated position for the beam effect
   - id: animated_beam_position
     type: float
@@ -405,6 +409,18 @@ interval:
     id: led_animation_interval
     then:
       - lambda: |-
+          uint32_t now = millis();
+          if (id(current_led_effect) != "off" || id(volume_display_active)) {
+            id(last_led_activity_time) = now;
+          }
+          if ((id(current_led_effect) != "off" || id(volume_display_active)) &&
+              (now - id(last_led_activity_time) > 10000)) {
+            id(volume_display_active) = false;
+            id(current_led_effect) = "off";
+            uint32_t colors[12] = {0};
+            id(respeaker).set_led_ring(colors);
+            return;
+          }
           if (id(volume_display_active)) {
             id(update_volume_display_effect).execute();
             return;
@@ -458,6 +474,7 @@ script:
           } else {
             id(last_led_update_time) = millis(); // Reset timer for smooth animation start
           }
+          id(last_led_activity_time) = millis();
 
   # Individual update scripts for each animated effect
   - id: update_breathe_effect
@@ -992,6 +1009,7 @@ script:
     then:
       - lambda: |-
           id(volume_display_active) = true;
+          id(last_led_activity_time) = millis();
       - delay: 2s
       - lambda: |-
           id(volume_display_active) = false;
