@@ -1427,6 +1427,8 @@ external_components:
 respeaker_xvf3800:
   id: respeaker
   address: 0x2C
+  # Optional: timeout to abort DFU processing if it stalls (disabled by default).
+  # processing_timeout: 10min
   mute_switch:
     id: mic_mute_switch
     name: "Microphone Mute"

@@ -208,6 +208,7 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
     this->firmware_bin_version_minor_ = minor;
     this->firmware_bin_version_patch_ = patch;
   }
+  void set_processing_timeout(uint32_t timeout_ms) { this->processing_timeout_ms_ = timeout_ms; }
 
   void start_dfu_update();
   uint8_t read_vnr();
@@ -272,6 +273,7 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   uint32_t last_ready_{0};
   uint32_t status_last_read_ms_{0};
   uint32_t update_start_time_{0};
+  uint32_t processing_timeout_ms_{0};
   RespeakerXVF3800UpdaterStatus dfu_update_status_{UPDATE_OK};
 
   // Child components

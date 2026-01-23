@@ -28,6 +28,7 @@ CONF_MD5 = "md5"
 CONF_ON_BEGIN = "on_begin"
 CONF_ON_END = "on_end"
 CONF_ON_PROGRESS = "on_progress"
+CONF_PROCESSING_TIMEOUT = "processing_timeout"
 
 DOMAIN = "respeaker_xvf3800"
 
@@ -90,6 +91,7 @@ CONFIG_SCHEMA = cv.Schema({
         accuracy_decimals=0,
         unit_of_measurement="",
     ).extend(cv.polling_component_schema("500ms")),
+    cv.Optional(CONF_PROCESSING_TIMEOUT): cv.positive_time_period_seconds,
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     cv.Optional(CONF_FIRMWARE): cv.All(
                 {
@@ -178,6 +180,9 @@ async def to_code(config):
         await sensor.register_sensor(led_beam_sensor, config[CONF_LED_BEAM_SENSOR])
         cg.add(var.set_led_beam_sensor(led_beam_sensor))
         cg.add(led_beam_sensor.set_parent(var))
+
+    if CONF_PROCESSING_TIMEOUT in config:
+        cg.add(var.set_processing_timeout(config[CONF_PROCESSING_TIMEOUT].total_milliseconds))
 
     if config_fw := config.get(CONF_FIRMWARE):
         firmware_version = config_fw[CONF_VERSION].split(".")
