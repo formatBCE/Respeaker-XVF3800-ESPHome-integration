@@ -216,7 +216,7 @@ globals:
     initial_value: '1.0'
   - id: effect_speed
     type: float
-    restore_value: yes
+    restore_value: no
     initial_value: "0.05"   # effects cycle per second (adjust as needed)
   - id: init_in_progress
     type: bool
