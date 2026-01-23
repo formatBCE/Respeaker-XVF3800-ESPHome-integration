@@ -1800,6 +1800,12 @@ button:
     name: "Factory Reset"
     entity_category: diagnostic
     internal: true
+  - platform: template
+    id: alarm_dismiss_button
+    name: "Alarm Dismiss"
+    icon: "mdi:bell-off"
+    on_press:
+      - switch.turn_off: timer_ringing
   - platform: restart
     id: restart_button
     name: "Restart"
