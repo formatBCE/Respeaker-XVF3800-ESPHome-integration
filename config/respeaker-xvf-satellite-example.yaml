@@ -97,6 +97,8 @@ wifi:
   fast_connect: ${hidden_ssid}
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  min_auth_mode: WPA2
+  use_psram: true
   ap:
     ssid: "Respeaker-Xvf3800"
     password: "u5tPvGff6Cl7"
@@ -110,9 +112,8 @@ wifi:
     - script.execute: control_leds
 
 network:
-  enable_ipv6: true
-
-captive_portal:
+  enable_ipv6: false
+  enable_high_performance: true
 
 logger:
   level: INFO
@@ -126,6 +127,7 @@ logger:
 
 api:
   id: api_id
+  reboot_timeout: 0s
   encryption:
     key: "Kl8t71BBZqz8qS1RWR6wzSrLaTmzEHGtwoKtUJpeJws="
   actions:
@@ -153,21 +155,50 @@ api:
         alarm_time_hh_mm: string
       then:
         - lambda: |-
-            if (alarm_time_hh_mm.length() == 5 &&
-              isdigit(alarm_time_hh_mm[0]) && isdigit(alarm_time_hh_mm[1]) &&
-              isdigit(alarm_time_hh_mm[3]) && isdigit(alarm_time_hh_mm[4])) {
-                id(alarm_time).publish_state(alarm_time_hh_mm);
-                id(alarm_time_input).publish_state(alarm_time_hh_mm);
-                id(saved_alarm_time) = alarm_time_hh_mm;
-              }
+            const std::string s = alarm_time_hh_mm;
+            const auto reject = [&](const char *reason) {
+              ESP_LOGW("alarm", "Rejected alarm time (%s): %s", reason, s.c_str());
+            };
+
+            if (s.size() != 5 || s[2] != ':') { reject("format"); return; }
+            for (size_t i : {0u, 1u, 3u, 4u}) {
+              if (!isdigit(static_cast<unsigned char>(s[i]))) { reject("non-digit"); return; }
+            }
+
+            const int hh = (s[0] - '0') * 10 + (s[1] - '0');
+            const int mm = (s[3] - '0') * 10 + (s[4] - '0');
+
+            if (hh < 0 || hh > 23 || mm < 0 || mm > 59) { reject("range"); return; }
+
+            id(alarm_time).publish_state(s);
+            id(alarm_time_input).publish_state(s);
+            id(saved_alarm_time) = s;
     - action: set_time_zone
       variables:
         posix_time_zone: string
       then:
         - lambda: |-
-            setenv("TZ", posix_time_zone.c_str(), 1);
+            const std::string tz = posix_time_zone;
+
+            // POSIX TZ strings vary; enforce basic safety only:
+            // - Non-empty
+            // - Reasonable length
+            // - Printable ASCII only (no control chars)
+            if (tz.empty() || tz.size() > 80) {
+              ESP_LOGW("tz", "Rejected TZ (empty/too long)");
+              return;
+            }
+            for (char c : tz) {
+              const unsigned char uc = static_cast<unsigned char>(c);
+              if (uc < 32 || uc > 126) {
+                ESP_LOGW("tz", "Rejected TZ (non-printable chars)");
+                return;
+              }
+            }
+
+            setenv("TZ", tz.c_str(), 1);
             tzset();
-            id(saved_time_zone) = posix_time_zone;
+            id(saved_time_zone) = tz;
             id(publish_current_time).execute();
   on_client_connected:
     - script.execute: control_leds
@@ -371,8 +402,6 @@ switch:
     on_turn_off:
       - script.execute: control_leds
 
-binary_sensor:
-
 number:
   - platform: template
     id: user_led_ring_brightness
@@ -421,39 +450,36 @@ text:
     optimistic: false
     set_action:
       - lambda: |-
-          if (x.length() == 5 &&
-            isdigit(x[0]) && isdigit(x[1]) &&
-            isdigit(x[3]) && isdigit(x[4])) {
-              id(alarm_time).publish_state(x);
-              id(saved_alarm_time) = x;
-              id(alarm_time_input).publish_state(x);
-            } else {
-              ESP_LOGW("alarm", "Incorrect alarm time setting");
-              id(alarm_time_input).publish_state(id(saved_alarm_time));
-            }
+          const std::string s = x;
+          const auto reject = [&](const char *reason) {
+            ESP_LOGW("alarm", "Rejected alarm time (%s): %s", reason, s.c_str());
+            id(alarm_time_input).publish_state(id(saved_alarm_time));
+          };
+
+          if (s.size() != 5 || s[2] != ':') { reject("format"); return; }
+          for (size_t i : {0u, 1u, 3u, 4u}) {
+            if (!isdigit(static_cast<unsigned char>(s[i]))) { reject("non-digit"); return; }
+          }
+
+          const int hh = (s[0] - '0') * 10 + (s[1] - '0');
+          const int mm = (s[3] - '0') * 10 + (s[4] - '0');
+
+          if (hh < 0 || hh > 23 || mm < 0 || mm > 59) { reject("range"); return; }
+
+          id(alarm_time).publish_state(s);
+          id(saved_alarm_time) = s;
+          id(alarm_time_input).publish_state(s);
 
 interval:
   - interval: 50ms
     id: led_animation_interval
     then:
       - lambda: |-
-          uint32_t now = millis();
-          if (id(current_led_effect) != "off" || id(volume_display_active)) {
-            id(last_led_activity_time) = now;
-          }
-          if ((id(current_led_effect) != "off" || id(volume_display_active)) &&
-              (now - id(last_led_activity_time) > 10000)) {
-            id(volume_display_active) = false;
-            id(current_led_effect) = "off";
-            uint32_t colors[12] = {0};
-            id(respeaker).set_led_ring(colors);
-            return;
-          }
           if (id(volume_display_active)) {
             id(update_volume_display_effect).execute();
             return;
           }
-          std::string effect = id(current_led_effect);
+          const std::string effect = id(current_led_effect);
           if (effect == "off") {
             return;
           } else if (effect == "breathe") {
@@ -818,33 +844,51 @@ script:
     mode: single  # Prevent multiple simultaneous executions
     then:
       - lambda: |
+          // Refresh timer state up front so caching is correct.
+          id(check_if_timers_active).execute();
+          if (id(is_timer_active)) {
+            id(fetch_first_active_timer).execute();
+          }
+
           // Cache expensive component checks
           static bool last_respeaker_failed = false;
           static bool last_wifi_connected = false;
           static bool last_api_connected = false;
-          static int last_voice_phase = -1;
+          static int  last_voice_phase = -1;
           static bool last_timer_ringing = false;
           static bool last_timer_active = false;
           static bool last_improv_ble = false;
           static bool last_init_progress = false;
+          static float last_user_r = -1.0f;
+          static float last_user_g = -1.0f;
+          static float last_user_b = -1.0f;
 
-          bool respeaker_failed = id(respeaker).is_failed();
-          bool wifi_connected = id(wifi_id).is_connected();
-          bool api_connected = id(api_id).is_connected();
-          int voice_phase = id(voice_assistant_phase);
-          bool new_timer_ringing = id(timer_ringing).state;
-          bool improv_ble = id(improv_ble_in_progress);
-          bool init_progress = id(init_in_progress);
+          const bool respeaker_failed = id(respeaker).is_failed();
+          const bool wifi_connected = id(wifi_id).is_connected();
+          const bool api_connected = id(api_id).is_connected(true);
+          const int  voice_phase = id(voice_assistant_phase);
+          const bool timer_ringing = id(timer_ringing).state;
+          const bool timer_active = id(is_timer_active);
+          const bool improv_ble = id(improv_ble_in_progress);
+          const bool init_progress = id(init_in_progress);
+
+          const float user_r = id(user_led_ring_color_r);
+          const float user_g = id(user_led_ring_color_g);
+          const float user_b = id(user_led_ring_color_b);
 
           // Only update if something actually changed
-          bool needs_update = (
+          const bool needs_update = (
             respeaker_failed != last_respeaker_failed ||
             wifi_connected != last_wifi_connected ||
             api_connected != last_api_connected ||
             voice_phase != last_voice_phase ||
-            new_timer_ringing != last_timer_ringing ||
+            timer_ringing != last_timer_ringing ||
+            timer_active != last_timer_active ||
             improv_ble != last_improv_ble ||
-            init_progress != last_init_progress
+            init_progress != last_init_progress ||
+            user_r != last_user_r ||
+            user_g != last_user_g ||
+            user_b != last_user_b
           );
 
           if (!needs_update) return;
@@ -854,19 +898,17 @@ script:
           last_wifi_connected = wifi_connected;
           last_api_connected = api_connected;
           last_voice_phase = voice_phase;
-          last_timer_ringing = new_timer_ringing;
+          last_timer_ringing = timer_ringing;
+          last_timer_active = timer_active;
           last_improv_ble = improv_ble;
           last_init_progress = init_progress;
+          last_user_r = user_r;
+          last_user_g = user_g;
+          last_user_b = user_b;
 
           if (respeaker_failed) {
             id(control_leds_respeaker_startup_failed).execute();
             return;
-          }
-
-          // Only check timers if we need to
-          id(check_if_timers_active).execute();
-          if (id(is_timer_active)){
-            id(fetch_first_active_timer).execute();
           }
 
           // Continue with existing logic...
@@ -876,7 +918,7 @@ script:
             id(control_leds_init_state).execute();
           } else if (!wifi_connected || !api_connected){
             id(control_leds_no_ha_connection_state).execute();
-          } else if (new_timer_ringing) {
+          } else if (timer_ringing) {
             id(control_leds_timer_ringing).execute();
           } else if (voice_phase == ${voice_assist_waiting_for_command_phase_id}) {
             id(control_leds_voice_assistant_waiting_for_command_phase).execute();
@@ -890,7 +932,7 @@ script:
             id(control_leds_voice_assistant_error_phase).execute();
           } else if (voice_phase == ${voice_assist_not_ready_phase_id}) {
             id(control_leds_voice_assistant_not_ready_phase).execute();
-          } else if (id(is_timer_active)) {
+          } else if (timer_active) {
             id(control_leds_timer_ticking).execute();
           } else if (voice_phase == ${voice_assist_idle_phase_id}) {
             id(control_leds_voice_assistant_idle_phase).execute();
@@ -1200,34 +1242,41 @@ script:
     then:
       - lambda: |-
           id(publish_current_time).execute();
-          // Check alarm
-          if (id(alarm_on).state && id(alarm_time).has_state()) {
-            // Get the stored alarm time from the sensor
-            auto set_alarm_time = id(alarm_time).state;
-            if (set_alarm_time.empty() || set_alarm_time == "Not set") {
+
+          if (!id(alarm_on).state) return;
+          if (!id(alarm_time).has_state()) return;
+
+          const std::string s = id(alarm_time).state;
+          if (s.empty() || s == "Not set") return;
+
+          if (s.size() != 5 || s[2] != ':') {
+            ESP_LOGW("alarm", "Stored alarm time invalid (format): %s", s.c_str());
+            return;
+          }
+          for (size_t i : {0u, 1u, 3u, 4u}) {
+            if (!isdigit(static_cast<unsigned char>(s[i]))) {
+              ESP_LOGW("alarm", "Stored alarm time invalid (non-digit): %s", s.c_str());
               return;
             }
-            if (set_alarm_time.length() == 5 &&
-              isdigit(set_alarm_time[0]) && isdigit(set_alarm_time[1]) &&
-              isdigit(set_alarm_time[3]) && isdigit(set_alarm_time[4])) {
-              auto alarm_hour = std::stoi(set_alarm_time.substr(0, 2));
-              auto alarm_minute = std::stoi(set_alarm_time.substr(3, 2));
+          }
 
-              // Trigger action if current time matches alarm time
-              auto time_now = id(homeassistant_time).now();
-              if (time_now.hour == alarm_hour && time_now.minute == alarm_minute) {
-                auto action = id(alarm_action).current_option();
-                if (action == "Play sound") {
-                  id(timer_ringing).turn_on();
-                } else if (action == "Send event") {
-                  id(send_alarm_event).execute();
-                } else if (action == "Sound and event") {
-                  id(timer_ringing).turn_on();
-                  id(send_alarm_event).execute();
-                }
-              }
-            } else {
-              ESP_LOGW("alarm", "Incorrect alarm time setting");
+          const int alarm_hour = (s[0] - '0') * 10 + (s[1] - '0');
+          const int alarm_minute = (s[3] - '0') * 10 + (s[4] - '0');
+          if (alarm_hour > 23 || alarm_minute > 59) {
+            ESP_LOGW("alarm", "Stored alarm time invalid (range): %s", s.c_str());
+            return;
+          }
+
+          auto time_now = id(homeassistant_time).now();
+          if (time_now.hour == alarm_hour && time_now.minute == alarm_minute) {
+            auto action = id(alarm_action).current_option();
+            if (action == "Play sound") {
+              id(timer_ringing).turn_on();
+            } else if (action == "Send event") {
+              id(send_alarm_event).execute();
+            } else if (action == "Sound and event") {
+              id(timer_ringing).turn_on();
+              id(send_alarm_event).execute();
             }
           }
   - id: send_alarm_event
@@ -1426,7 +1475,6 @@ external_components:
       ref: respeaker_microphone
     components:
       - i2s_audio
-    refresh: 0s
   - source:
       type: git
       url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration
@@ -1434,44 +1482,48 @@ external_components:
     components:
       - respeaker_xvf3800
       - aic3104
-    refresh: 0s
   - source:
       # https://github.com/esphome/esphome/pull/12253
       type: git
       url: https://github.com/esphome/esphome
       ref: 7f34908569650e5a8b8c83e6bf89fea561218880
     components: [mixer]
+    refresh: never
   - source:
       # https://github.com/esphome/esphome/pull/12254
       type: git
       url: https://github.com/esphome/esphome
       ref: 6006b896a691ad38d8045ac67564c168973d1a1d
     components: [resampler]
+    refresh: never
   - source:
       # https://github.com/esphome/esphome/pull/12256
       type: git
       url: https://github.com/esphome/esphome
       ref: 9148832ea4e54907bad71a24d4ced1ce6c862433
     components: [audio]
+    refresh: never
   - source:
       # https://github.com/esphome/esphome/pull/12258
       type: git
       url: https://github.com/esphome/esphome
       ref: bff22983a390352360796f8e1363127e0cd1f898
     components: [media_player]
+    refresh: never
   - source:
       # https://github.com/esphome/esphome/pull/12284
       type: git
       url: https://github.com/esphome/esphome
       ref: a6c0a861a014e64c67d46115eba8e5370777b80a
     components: [mdns, sendspin]
+    refresh: never
   - source:
       # https://github.com/esphome/esphome/pull/12429
       type: git
       url: https://github.com/esphome/esphome
       ref: 928204066ce0082404573ea1c6a0b58aeebbd7c6
-    refresh: 0s
     components: [file, http_request, media_source, speaker_source]
+    refresh: never
 
 respeaker_xvf3800:
   id: respeaker
