@@ -198,10 +198,6 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
     this->firmware_bin_length_ = len;
   }
 
-  void set_mute_state(binary_sensor::BinarySensor* mute_state) {
-    this->mute_state_ = mute_state;
-  }
-
   void set_firmware_version(text_sensor::TextSensor* firmware_version) {
     this->firmware_version_ = firmware_version;
   }
@@ -252,7 +248,6 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   bool dfu_check_if_ready_();
 
   GPIOPin *reset_pin_{nullptr};
-  binary_sensor::BinarySensor *mute_state_{nullptr};
   text_sensor::TextSensor *firmware_version_{nullptr};
 
   bool get_firmware_version_();
