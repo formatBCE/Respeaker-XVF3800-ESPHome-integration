@@ -417,6 +417,7 @@ text:
     name: "Alarm time"
     id: alarm_time_input
     icon: mdi:bell-ring
+    mode: text
     optimistic: false
     set_action:
       - lambda: |-
