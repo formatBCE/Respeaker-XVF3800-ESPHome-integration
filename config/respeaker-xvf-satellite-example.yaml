@@ -417,7 +417,7 @@ text:
     name: "Alarm time"
     id: alarm_time_input
     icon: mdi:bell-ring
-    optimistic: true
+    optimistic: false
     set_action:
       - lambda: |-
           if (x.length() == 5 &&
@@ -425,8 +425,10 @@ text:
             isdigit(x[3]) && isdigit(x[4])) {
               id(alarm_time).publish_state(x);
               id(saved_alarm_time) = x;
+              id(alarm_time_input).publish_state(x);
             } else {
               ESP_LOGW("alarm", "Incorrect alarm time setting");
+              id(alarm_time_input).publish_state(id(saved_alarm_time));
             }
 
 interval:
