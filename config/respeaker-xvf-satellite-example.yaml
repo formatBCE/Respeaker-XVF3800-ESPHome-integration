@@ -58,6 +58,8 @@ esphome:
         - lambda: |-
             id(alarm_time).publish_state(id(saved_alarm_time));
         - lambda: |-
+            id(alarm_time_input).publish_state(id(saved_alarm_time));
+        - lambda: |-
             auto call = id(alarm_action).make_call();
             call.set_option(id(saved_alarm_action));
             call.perform();
@@ -155,6 +157,7 @@ api:
               isdigit(alarm_time_hh_mm[0]) && isdigit(alarm_time_hh_mm[1]) &&
               isdigit(alarm_time_hh_mm[3]) && isdigit(alarm_time_hh_mm[4])) {
                 id(alarm_time).publish_state(alarm_time_hh_mm);
+                id(alarm_time_input).publish_state(alarm_time_hh_mm);
                 id(saved_alarm_time) = alarm_time_hh_mm;
               }
     - action: set_time_zone
@@ -402,13 +405,29 @@ text_sensor:
     icon: "mdi:timer"
     disabled_by_default: true
   - platform: template
-    name: "Alarm time"
     id: alarm_time
-    icon: mdi:bell-ring
+    internal: true
   - platform: template
     name: "Current device time"
     id: current_time
     icon: mdi:clock
+
+text:
+  - platform: template
+    name: "Alarm time"
+    id: alarm_time_input
+    icon: mdi:bell-ring
+    optimistic: true
+    set_action:
+      - lambda: |-
+          if (x.length() == 5 &&
+            isdigit(x[0]) && isdigit(x[1]) &&
+            isdigit(x[3]) && isdigit(x[4])) {
+              id(alarm_time).publish_state(x);
+              id(saved_alarm_time) = x;
+            } else {
+              ESP_LOGW("alarm", "Incorrect alarm time setting");
+            }
 
 interval:
   - interval: 50ms
