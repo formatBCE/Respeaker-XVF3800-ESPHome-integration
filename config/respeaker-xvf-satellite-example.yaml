@@ -29,6 +29,26 @@ substitutions:
   factory_reset_cancelled_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_cancelled.mp3
   factory_reset_confirmed_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_confirmed.mp3
   error_cloud_expired_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/error_cloud_expired.mp3
+  ui_system_tink_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/Tink.m4a
+  ui_system_tock_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/Tock.m4a
+  ui_system_navigation_pop_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/navigation_pop.m4a
+  ui_system_navigation_push_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/navigation_push.m4a
+  ui_system_acknowledgment_received_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/acknowledgment_received.m4a
+  ui_system_acknowledgment_sent_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/acknowledgment_sent.m4a
+  ui_system_payment_success_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/payment_success.m4a
+  ui_system_payment_failure_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/payment_failure.m4a
+  ui_system_low_power_alert_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/low_power.m4a
+  ui_system_received_message_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/ReceivedMessage.m4a
+  ui_system_sent_message_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/SentMessage.m4a
+  ui_system_key_press_click_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/key_press_click.m4a
+  ui_system_key_press_delete_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/key_press_delete.m4a
+  ui_system_focus_change_small_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/focus_change_small.m4a
+  ui_system_focus_change_large_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/focus_change_large.m4a
+  ui_system_short_double_high_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/short_double_high.m4a
+  ui_system_short_double_low_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/short_double_low.m4a
+  ui_system_sedentary_timer_haptic_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/SedentaryTimer_Haptic.m4a
+  ui_system_time_tick_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/WorkoutCountdown_Haptic.m4a
+  ui_system_camera_shutter_burst_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/camera_shutter_burst.m4a
 
 esphome:
   name: respeaker-xvf3800
@@ -1432,6 +1452,46 @@ media_source:
         file: ${factory_reset_confirmed_sound_file}
       - id: error_cloud_expired
         file: ${error_cloud_expired_sound_file}
+      - id: ui_system_tink_sound
+        file: ${ui_system_tink_sound_file}
+      - id: ui_system_tock_sound
+        file: ${ui_system_tock_sound_file}
+      - id: ui_system_navigation_pop_sound
+        file: ${ui_system_navigation_pop_sound_file}
+      - id: ui_system_navigation_push_sound
+        file: ${ui_system_navigation_push_sound_file}
+      - id: ui_system_acknowledgment_received_sound
+        file: ${ui_system_acknowledgment_received_sound_file}
+      - id: ui_system_acknowledgment_sent_sound
+        file: ${ui_system_acknowledgment_sent_sound_file}
+      - id: ui_system_payment_success_sound
+        file: ${ui_system_payment_success_sound_file}
+      - id: ui_system_payment_failure_sound
+        file: ${ui_system_payment_failure_sound_file}
+      - id: ui_system_low_power_alert_sound
+        file: ${ui_system_low_power_alert_sound_file}
+      - id: ui_system_received_message_sound
+        file: ${ui_system_received_message_sound_file}
+      - id: ui_system_sent_message_sound
+        file: ${ui_system_sent_message_sound_file}
+      - id: ui_system_key_press_click_sound
+        file: ${ui_system_key_press_click_sound_file}
+      - id: ui_system_key_press_delete_sound
+        file: ${ui_system_key_press_delete_sound_file}
+      - id: ui_system_focus_change_small_sound
+        file: ${ui_system_focus_change_small_sound_file}
+      - id: ui_system_focus_change_large_sound
+        file: ${ui_system_focus_change_large_sound_file}
+      - id: ui_system_short_double_high_sound
+        file: ${ui_system_short_double_high_sound_file}
+      - id: ui_system_short_double_low_sound
+        file: ${ui_system_short_double_low_sound_file}
+      - id: ui_system_sedentary_timer_haptic_sound
+        file: ${ui_system_sedentary_timer_haptic_sound_file}
+      - id: ui_system_time_tick_sound
+        file: ${ui_system_time_tick_sound_file}
+      - id: ui_system_camera_shutter_burst_sound
+        file: ${ui_system_camera_shutter_burst_sound_file}
 
 media_player:
   - platform: sendspin
