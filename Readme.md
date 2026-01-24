@@ -24,7 +24,7 @@ This repository provides custom ESPHome components, an example configuration, an
 4. ...?
 
 ## Quick start
-1. Review the example YAML in `config/respeaker-xvf-satellite-example.yaml` and copy the relevant sections into your ESPHome device configuration.
+1. Review the example YAML in `config/respeaker-xvf-satellite-example.yaml` and copy the relevant sections into your ESPHome device configuration (for example `/config/esphome/respeaker-xvf3800.yaml`). The example keeps the timer ringing state in a global (`timer_ringing_state`) so lambdas don't reach into switch internals, and avoids calling protected `VoiceAssistant` timeout APIs.
 2. Ensure the XVF3800 is wired to the ESP32 I2C bus (SDA/SCL) and powered correctly.
 3. Optionally include the firmware block in the config to perform DFU updates from the bundled `.bin` file.
 4. Use the HA scripts in `ha/` or `misc/` to drive LED color changes once the device is online.
