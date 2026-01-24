@@ -29,6 +29,26 @@ substitutions:
   factory_reset_cancelled_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_cancelled.mp3
   factory_reset_confirmed_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_confirmed.mp3
   error_cloud_expired_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/error_cloud_expired.mp3
+  ui_system_tink_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/Tink.m4a
+  ui_system_tock_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/Tock.m4a
+  ui_system_navigation_pop_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/navigation_pop.m4a
+  ui_system_navigation_push_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/navigation_push.m4a
+  ui_system_acknowledgment_received_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/acknowledgment_received.m4a
+  ui_system_acknowledgment_sent_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/acknowledgment_sent.m4a
+  ui_system_payment_success_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/payment_success.m4a
+  ui_system_payment_failure_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/payment_failure.m4a
+  ui_system_low_power_alert_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/low_power.m4a
+  ui_system_received_message_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/ReceivedMessage.m4a
+  ui_system_sent_message_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/SentMessage.m4a
+  ui_system_key_press_click_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/key_press_click.m4a
+  ui_system_key_press_delete_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/key_press_delete.m4a
+  ui_system_focus_change_small_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/focus_change_small.m4a
+  ui_system_focus_change_large_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/focus_change_large.m4a
+  ui_system_short_double_high_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/short_double_high.m4a
+  ui_system_short_double_low_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/short_double_low.m4a
+  ui_system_sedentary_timer_haptic_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/SedentaryTimer_Haptic.m4a
+  ui_system_time_tick_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/WorkoutCountdown_Haptic.m4a
+  ui_system_camera_shutter_burst_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/camera_shutter_burst.m4a
 
 esphome:
   name: respeaker-xvf3800
@@ -1134,7 +1154,7 @@ script:
       - script.execute:
           id: play_sound
           priority: true
-          sound_file: "timer_finished_sound"
+          sound_file: ${timer_finished_sound_file}
 
   # Script executed when the timer is ringing, to repeat the timer finished sound.
   - id: enable_repeat_one
@@ -1174,7 +1194,7 @@ script:
           if ( (id(external_media_player).state != media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING ) || priority) {
             id(external_media_player)
               ->make_call()
-              .set_media_url("file://" + sound_file)
+              .set_media_url(sound_file)
               .set_announcement(true)
               .perform();
           }
@@ -1405,33 +1425,6 @@ media_source:
   - platform: http_request
     id: http_source
     buffer_size: 500000
-  - platform: file
-    id: file_source
-    files:
-      - id: mute_switch_on_sound
-        file: ${mute_switch_on_sound_file}
-      - id: mute_switch_off_sound
-        file: ${mute_switch_off_sound_file}
-      - id: timer_finished_sound
-        file: ${timer_finished_sound_file}
-      - id: wake_word_triggered_sound
-        file: ${wake_word_triggered_sound_file}
-      - id: center_button_press_sound
-        file: ${center_button_press_sound_file}
-      - id: center_button_double_press_sound
-        file: ${center_button_double_press_sound_file}
-      - id: center_button_triple_press_sound
-        file: ${center_button_triple_press_sound_file}
-      - id: center_button_long_press_sound
-        file: ${center_button_long_press_sound_file}
-      - id: factory_reset_initiated_sound
-        file: ${factory_reset_initiated_sound_file}
-      - id: factory_reset_cancelled_sound
-        file: ${factory_reset_cancelled_sound_file}
-      - id: factory_reset_confirmed_sound
-        file: ${factory_reset_confirmed_sound_file}
-      - id: error_cloud_expired
-        file: ${error_cloud_expired_sound_file}
 
 media_player:
   - platform: sendspin
@@ -1453,7 +1446,6 @@ media_player:
     volume_min: 0.0
     volume_max: 1.0
     sources:
-      - file_source
       - http_source
       - sendspin_source
     on_mute:
@@ -1565,7 +1557,7 @@ respeaker_xvf3800:
             - script.execute:
                 id: play_sound
                 priority: false
-                sound_file: "mute_switch_on_sound"
+                sound_file: ${mute_switch_on_sound_file}
     on_turn_off:
       - if:
           condition:
@@ -1576,7 +1568,7 @@ respeaker_xvf3800:
             - script.execute:
                 id: play_sound
                 priority: false
-                sound_file: "mute_switch_off_sound"
+                sound_file: ${mute_switch_off_sound_file}
   dfu_version:
     name: "Firmware Version"
     update_interval: 120s
@@ -1654,7 +1646,7 @@ micro_wake_word:
                                   - script.execute:
                                       id: play_sound
                                       priority: true
-                                      sound_file: "wake_word_triggered_sound"
+                                      sound_file: ${wake_word_triggered_sound_file}
                                   - delay: 300ms
                             - voice_assistant.start:
                                 wake_word: !lambda return wake_word;
@@ -1827,7 +1819,7 @@ voice_assistant:
           - script.execute:
               id: play_sound
               priority: true
-              sound_file: "error_cloud_expired"
+              sound_file: ${error_cloud_expired_sound_file}
   # When the voice assistant starts: Play a wake up sound, duck audio.
   on_start:
     - mixer_speaker.apply_ducking:
@@ -1974,31 +1966,31 @@ button:
           sound_file: !lambda |-
             auto selection = id(play_sound_select).current_option();
             if (selection == "Mute switch on") {
-              return std::string("mute_switch_on_sound");
+              return std::string("${mute_switch_on_sound_file}");
             } else if (selection == "Mute switch off") {
-              return std::string("mute_switch_off_sound");
+              return std::string("${mute_switch_off_sound_file}");
             } else if (selection == "Timer finished") {
-              return std::string("timer_finished_sound");
+              return std::string("${timer_finished_sound_file}");
             } else if (selection == "Wake word triggered") {
-              return std::string("wake_word_triggered_sound");
+              return std::string("${wake_word_triggered_sound_file}");
             } else if (selection == "Center button press") {
-              return std::string("center_button_press_sound");
+              return std::string("${center_button_press_sound_file}");
             } else if (selection == "Center button double press") {
-              return std::string("center_button_double_press_sound");
+              return std::string("${center_button_double_press_sound_file}");
             } else if (selection == "Center button triple press") {
-              return std::string("center_button_triple_press_sound");
+              return std::string("${center_button_triple_press_sound_file}");
             } else if (selection == "Center button long press") {
-              return std::string("center_button_long_press_sound");
+              return std::string("${center_button_long_press_sound_file}");
             } else if (selection == "Factory reset initiated") {
-              return std::string("factory_reset_initiated_sound");
+              return std::string("${factory_reset_initiated_sound_file}");
             } else if (selection == "Factory reset cancelled") {
-              return std::string("factory_reset_cancelled_sound");
+              return std::string("${factory_reset_cancelled_sound_file}");
             } else if (selection == "Factory reset confirmed") {
-              return std::string("factory_reset_confirmed_sound");
+              return std::string("${factory_reset_confirmed_sound_file}");
             } else if (selection == "Error cloud expired") {
-              return std::string("error_cloud_expired");
+              return std::string("${error_cloud_expired_sound_file}");
             }
-            return std::string("timer_finished_sound");
+            return std::string("${timer_finished_sound_file}");
   - platform: restart
     id: restart_button
     name: "Restart"
