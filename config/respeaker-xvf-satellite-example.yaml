@@ -241,7 +241,7 @@ globals:
   - id: saved_alarm_time
     type: std::string
     restore_value: yes
-    initial_value: '"Unknown"'
+    initial_value: '"Not set"'
   - id: saved_time_zone
     type: std::string
     restore_value: yes
@@ -1182,6 +1182,9 @@ script:
           if (id(alarm_on).state && id(alarm_time).has_state()) {
             // Get the stored alarm time from the sensor
             auto set_alarm_time = id(alarm_time).state;
+            if (set_alarm_time.empty() || set_alarm_time == "Not set") {
+              return;
+            }
             if (set_alarm_time.length() == 5 &&
               isdigit(set_alarm_time[0]) && isdigit(set_alarm_time[1]) &&
               isdigit(set_alarm_time[3]) && isdigit(set_alarm_time[4])) {
@@ -1832,6 +1835,23 @@ button:
     icon: "mdi:bell-off"
     on_press:
       - switch.turn_off: timer_ringing
+      - lambda: |-
+          const auto timers = id(va).get_timers();
+          if (!timers.empty()) {
+            for (const auto &iterable_timer : timers) {
+              id(va).cancel_timer(iterable_timer.first);
+            }
+          }
+      - lambda: |
+          id(check_if_timers_active).execute();
+          if (id(is_timer_active)) {
+            id(fetch_first_active_timer).execute();
+            id(next_timer).publish_state(id(first_active_timer).seconds_left);
+            id(next_timer_name).publish_state(id(first_active_timer).name);
+          } else {
+            id(next_timer).publish_state(-1);
+            id(next_timer_name).publish_state("-");
+          }
   - platform: restart
     id: restart_button
     name: "Restart"
