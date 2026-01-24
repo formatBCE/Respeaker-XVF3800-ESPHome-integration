@@ -867,7 +867,7 @@ script:
           const bool wifi_connected = id(wifi_id).is_connected();
           const bool api_connected = id(api_id).is_connected(true);
           const int  voice_phase = id(voice_assistant_phase);
-          const bool timer_ringing = id(timer_ringing).state;
+          const bool timer_ringing = id(timer_ringing).is_on();
           const bool timer_active = id(is_timer_active);
           const bool improv_ble = id(improv_ble_in_progress);
           const bool init_progress = id(init_in_progress);
@@ -1914,7 +1914,7 @@ button:
           if (!timers.empty()) {
             for (const auto &iterable_timer : timers) {
               if (iterable_timer.second.is_active) {
-                id(va).cancel_timer(iterable_timer.first);
+                id(va).cancel_timeout(iterable_timer.first);
               }
             }
           }
