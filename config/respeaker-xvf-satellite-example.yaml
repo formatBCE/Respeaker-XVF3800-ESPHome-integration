@@ -360,8 +360,6 @@ switch:
     optimistic: true
     internal: true
     restore_mode: ALWAYS_OFF
-    on_turn_on:
-      - lambda: id(timer_ringing_state) = true;
     on_turn_off:
       - lambda: id(timer_ringing_state) = false;
       # Disable stop wake word
@@ -384,6 +382,7 @@ switch:
       # Refresh the LED ring
       - script.execute: control_leds
     on_turn_on:
+      - lambda: id(timer_ringing_state) = true;
       # Duck audio
       - mixer_speaker.apply_ducking:
           id: media_mixing_input
