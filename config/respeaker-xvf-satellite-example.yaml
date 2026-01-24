@@ -1416,6 +1416,20 @@ media_source:
         file: ${timer_finished_sound_file}
       - id: wake_word_triggered_sound
         file: ${wake_word_triggered_sound_file}
+      - id: center_button_press_sound
+        file: ${center_button_press_sound_file}
+      - id: center_button_double_press_sound
+        file: ${center_button_double_press_sound_file}
+      - id: center_button_triple_press_sound
+        file: ${center_button_triple_press_sound_file}
+      - id: center_button_long_press_sound
+        file: ${center_button_long_press_sound_file}
+      - id: factory_reset_initiated_sound
+        file: ${factory_reset_initiated_sound_file}
+      - id: factory_reset_cancelled_sound
+        file: ${factory_reset_cancelled_sound_file}
+      - id: factory_reset_confirmed_sound
+        file: ${factory_reset_confirmed_sound_file}
       - id: error_cloud_expired
         file: ${error_cloud_expired_sound_file}
 
@@ -1694,6 +1708,26 @@ select:
         - lambda: |-
             id(saved_alarm_action) = x;
   - platform: template
+    name: "Play Sound"
+    id: play_sound_select
+    icon: "mdi:play-circle"
+    optimistic: true
+    restore_value: true
+    initial_option: "Timer finished"
+    options:
+      - "Mute switch on"
+      - "Mute switch off"
+      - "Timer finished"
+      - "Wake word triggered"
+      - "Center button press"
+      - "Center button double press"
+      - "Center button triple press"
+      - "Center button long press"
+      - "Factory reset initiated"
+      - "Factory reset cancelled"
+      - "Factory reset confirmed"
+      - "Error cloud expired"
+  - platform: template
     name: "LED Ring Color Preset"
     id: user_led_color_preset
     icon: "mdi:palette"
@@ -1925,10 +1959,46 @@ button:
             id(fetch_first_active_timer).execute();
             id(next_timer).publish_state(id(first_active_timer).seconds_left);
             id(next_timer_name).publish_state(id(first_active_timer).name);
-          } else {
-            id(next_timer).publish_state(-1);
-            id(next_timer_name).publish_state("-");
-          }
+        } else {
+          id(next_timer).publish_state(-1);
+          id(next_timer_name).publish_state("-");
+        }
+  - platform: template
+    id: play_sound_button
+    name: "Play Sound"
+    icon: "mdi:play"
+    on_press:
+      - script.execute:
+          id: play_sound
+          priority: true
+          sound_file: !lambda |-
+            auto selection = id(play_sound_select).current_option();
+            if (selection == "Mute switch on") {
+              return std::string("mute_switch_on_sound");
+            } else if (selection == "Mute switch off") {
+              return std::string("mute_switch_off_sound");
+            } else if (selection == "Timer finished") {
+              return std::string("timer_finished_sound");
+            } else if (selection == "Wake word triggered") {
+              return std::string("wake_word_triggered_sound");
+            } else if (selection == "Center button press") {
+              return std::string("center_button_press_sound");
+            } else if (selection == "Center button double press") {
+              return std::string("center_button_double_press_sound");
+            } else if (selection == "Center button triple press") {
+              return std::string("center_button_triple_press_sound");
+            } else if (selection == "Center button long press") {
+              return std::string("center_button_long_press_sound");
+            } else if (selection == "Factory reset initiated") {
+              return std::string("factory_reset_initiated_sound");
+            } else if (selection == "Factory reset cancelled") {
+              return std::string("factory_reset_cancelled_sound");
+            } else if (selection == "Factory reset confirmed") {
+              return std::string("factory_reset_confirmed_sound");
+            } else if (selection == "Error cloud expired") {
+              return std::string("error_cloud_expired");
+            }
+            return std::string("timer_finished_sound");
   - platform: restart
     id: restart_button
     name: "Restart"
