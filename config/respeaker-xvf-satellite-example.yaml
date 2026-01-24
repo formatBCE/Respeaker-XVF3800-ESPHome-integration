@@ -1912,10 +1912,10 @@ voice_assistant:
           id(fetch_first_active_timer).execute();
           id(next_timer).publish_state(id(first_active_timer).seconds_left);
           id(next_timer_name).publish_state(id(first_active_timer).name);
-        } else {
-          id(next_timer).publish_state(-1);
-          id(next_timer_name).publish_state("-");
-        }
+          } else {
+            id(next_timer).publish_state(-1);
+            id(next_timer_name).publish_state("-");
+          }
     - script.execute: control_leds
   on_timer_updated:
     - lambda: |
@@ -1959,10 +1959,10 @@ button:
             id(fetch_first_active_timer).execute();
             id(next_timer).publish_state(id(first_active_timer).seconds_left);
             id(next_timer_name).publish_state(id(first_active_timer).name);
-        } else {
-          id(next_timer).publish_state(-1);
-          id(next_timer_name).publish_state("-");
-        }
+          } else {
+            id(next_timer).publish_state(-1);
+            id(next_timer_name).publish_state("-");
+          }
   - platform: template
     id: play_sound_button
     name: "Play Sound"
