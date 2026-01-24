@@ -1477,7 +1477,7 @@ external_components:
       - i2s_audio
   - source:
       type: git
-      url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration
+      url: https://github.com/fitoori/Respeaker-XVF3800-ESPHome-integration
       ref: main
     components:
       - respeaker_xvf3800
