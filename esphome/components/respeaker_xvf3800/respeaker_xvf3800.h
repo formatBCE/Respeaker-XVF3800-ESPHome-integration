@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
@@ -14,6 +13,10 @@
 #include <cstring>
 
 namespace esphome {
+namespace binary_sensor {
+class BinarySensor;
+}  // namespace binary_sensor
+
 namespace respeaker_xvf3800 {
 
 // Forward-declare the main component class
