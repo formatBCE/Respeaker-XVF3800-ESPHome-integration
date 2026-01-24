@@ -1862,7 +1862,7 @@ button:
           if (!timers.empty()) {
             for (const auto &iterable_timer : timers) {
               if (iterable_timer.second.is_active) {
-                id(va).cancel_timeout(iterable_timer.first);
+                id(va).cancel_timer(iterable_timer.first);
               }
             }
           }
