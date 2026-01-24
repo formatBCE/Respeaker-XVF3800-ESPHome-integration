@@ -1839,7 +1839,9 @@ button:
           const auto timers = id(va).get_timers();
           if (!timers.empty()) {
             for (const auto &iterable_timer : timers) {
-              id(va).cancel_timer(iterable_timer.first);
+              if (iterable_timer.second.is_active) {
+                id(va).cancel_timer(iterable_timer.first);
+              }
             }
           }
       - lambda: |
