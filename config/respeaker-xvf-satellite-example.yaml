@@ -31,8 +31,8 @@ substitutions:
   error_cloud_expired_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/error_cloud_expired.mp3
 
 esphome:
-  name: respeaker-xvf3800-assistant
-  friendly_name: reSpeaker XVF3800 Assistant
+  name: respeaker-xvf3800
+  friendly_name: reSpeaker XVF3800
   project:
     name: formatbce.Respeaker XVF3800 Satellite
     version: 2026.1.2
@@ -95,6 +95,9 @@ wifi:
   fast_connect: ${hidden_ssid}
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  ap:
+    ssid: "Respeaker-Xvf3800"
+    password: "u5tPvGff6Cl7"
   # Add power management and connection optimizations
   power_save_mode: none  # Disable power saving for better performance
   reboot_timeout: 10min  # Prevent unnecessary reboots
@@ -106,6 +109,8 @@ wifi:
 
 network:
   enable_ipv6: true
+
+captive_portal:
 
 logger:
   level: INFO
@@ -119,6 +124,8 @@ logger:
 
 api:
   id: api_id
+  encryption:
+    key: "Kl8t71BBZqz8qS1RWR6wzSrLaTmzEHGtwoKtUJpeJws="
   actions:
     - action: set_led_color
       variables:
@@ -170,8 +177,7 @@ http_request:
 
 ota:
   - platform: esphome
-    id: ota_esphome
-    password: !secret ota_password
+    password: "bdecb5123ed84595432e996ea1fc8b80"
 
 i2c:
   - id: internal_i2c
