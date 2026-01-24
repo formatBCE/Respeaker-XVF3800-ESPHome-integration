@@ -29,8 +29,4 @@ This repository provides custom ESPHome components, an example configuration, an
 3. Optionally include the firmware block in the config to perform DFU updates from the bundled `.bin` file.
 4. Use the HA scripts in `ha/` or `misc/` to drive LED color changes once the device is online.
 
-## Troubleshooting
-- If you see `VoiceAssistant has no member named cancel_timer`, update any timer dismissal logic to call `cancel_timeout` instead.
-- If you see `base operand of '->' is not a pointer` for `timer_ringing`, ensure you are reading the template switch state with `id(timer_ringing).is_on()` rather than `.state`.
-
 If you test changes or have success reports, please open an issue or PR with your findings.
