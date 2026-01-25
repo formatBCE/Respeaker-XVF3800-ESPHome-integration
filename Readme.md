@@ -1,6 +1,6 @@
 # ESPHome components and example config for [Respeaker XVF3800](https://github.com/respeaker/reSpeaker_XVF3800_USB_4MIC_ARRAY)
 
-## _ATTENTION! Under development, use on your own risk!_
+## _ATTENTION! Under development, use at your own risk!_
 ## Testing appreciated.
 
 ## Overview
@@ -18,10 +18,9 @@ This repository provides custom ESPHome components, an example configuration, an
   - `application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin`
 
 ## Known issues
-1. There's no buttons, so no way to stop timer or response except saying "stop", and no way to start pipeline manually.
-2. No volume controls besides the software one (similar to Respeaker Lite Voice Kit).
-3. No exposed light (LED is controlled via I2C).
-4. ...?
+1. it randomly twinkes red when idle for some reason
+2. timezone autodetection has been disabled because it keeps switching to UTC
+3. config uses my personal creds because I cba to manually input it every time I update. Scrub mine and put yours before flashing.
 
 ## Quick start
 1. Review the example YAML in `config/respeaker-xvf-satellite-example.yaml` and copy the relevant sections into your ESPHome device configuration (for example `/config/esphome/respeaker-xvf3800.yaml`). The example keeps the timer ringing state in a global (`timer_ringing_state`) so lambdas don't reach into switch internals, and avoids calling protected `VoiceAssistant` timeout APIs.
