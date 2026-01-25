@@ -1857,6 +1857,22 @@ select:
       - "Factory Reset CONFIRMED"
       - "Error HA cloud expired"
   - platform: template
+    name: "Play Light Effect"
+    id: play_light_effect_select
+    icon: "mdi:play-circle"
+    optimistic: true
+    restore_value: true
+    initial_option: "Breathe"
+    options:
+      - "Off"
+      - "Breathe"
+      - "Rainbow"
+      - "Comet CW"
+      - "Comet CCW"
+      - "Twinkle"
+      - "Timer Tick"
+      - "LED Beam"
+  - platform: template
     name: "LED Ring Color Preset"
     id: user_led_color_preset
     icon: "mdi:palette"
@@ -2168,6 +2184,56 @@ button:
               return std::string("${ui_system_camera_shutter_burst_sound_file}");
             }
             return std::string("${timer_finished_sound_file}");
+  - platform: template
+    id: play_light_effect_button
+    name: "Play Light Effect"
+    icon: "mdi:play"
+    on_press:
+      - lambda: |-
+          auto selection = id(play_light_effect_select).current_option();
+          float r = id(user_led_ring_color_r);
+          float g = id(user_led_ring_color_g);
+          float b = id(user_led_ring_color_b);
+          float speed = 1.0f;
+          float brightness = 0.8f;
+          std::string effect = "breathe";
+
+          if (selection == "Off") {
+            effect = "off";
+            speed = 0.0f;
+            brightness = 0.0f;
+          } else if (selection == "Breathe") {
+            effect = "breathe";
+            speed = 1.0f;
+            brightness = 0.6f;
+          } else if (selection == "Rainbow") {
+            effect = "rainbow";
+            speed = 0.4f;
+            brightness = 0.8f;
+          } else if (selection == "Comet CW") {
+            effect = "comet_cw";
+            speed = 1.0f;
+            brightness = 0.8f;
+          } else if (selection == "Comet CCW") {
+            effect = "comet_ccw";
+            speed = 1.0f;
+            brightness = 0.8f;
+          } else if (selection == "Twinkle") {
+            effect = "twinkle";
+            speed = 6.0f;
+            brightness = 0.8f;
+          } else if (selection == "Timer Tick") {
+            effect = "timer_tick";
+            speed = 1.0f;
+            brightness = 0.7f;
+          } else if (selection == "LED Beam") {
+            effect = "led_beam";
+            speed = 0.0f;
+            brightness = 0.8f;
+            id(animated_beam_position) = id(beam_direction).state;
+          }
+
+          id(led_set_effect).execute(effect, r, g, b, speed, brightness);
   - platform: restart
     id: restart_button
     name: "Restart"
