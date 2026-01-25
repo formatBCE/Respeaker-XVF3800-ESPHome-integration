@@ -53,7 +53,7 @@ esphome:
   name: respeaker-xvf3800
   friendly_name: reSpeaker XVF3800
   project:
-    name: formatbce.Respeaker XVF3800 Satellite
+    name: fitoori.Respeaker XVF3800 Satellite
     version: 2026.1.2
   min_version: 2026.1.0
   on_boot:
@@ -119,8 +119,8 @@ wifi:
   min_auth_mode: WPA2
   use_psram: true
   ap:
-    ssid: "Respeaker-Xvf3800"
-    password: "u5tPvGff6Cl7"
+    ssid: "reSpeaker_XVF-3800"
+    password: "esphome"
   # Add power management and connection optimizations
   power_save_mode: none  # Disable power saving for better performance
   reboot_timeout: 10min  # Prevent unnecessary reboots
@@ -422,7 +422,7 @@ switch:
     restore_mode: RESTORE_DEFAULT_OFF
     id: alarm_on
     icon: mdi:bell-badge
-    name: "Alarm on"
+    name: "Alarm Status"
     on_turn_on:
       - script.execute: control_leds
     on_turn_off:
@@ -445,7 +445,7 @@ number:
 sensor:
   - platform: template
     id: next_timer
-    name: "Next timer"
+    name: "Next Timer"
     update_interval: never
     disabled_by_default: true
     device_class: duration
@@ -469,7 +469,7 @@ text_sensor:
 
 text:
   - platform: template
-    name: "Alarm time"
+    name: "Alarm Time"
     id: alarm_time_input
     icon: mdi:bell-ring
     mode: text
@@ -1572,7 +1572,7 @@ respeaker_xvf3800:
   # processing_timeout: 10min
   mute_switch:
     id: mic_mute_switch
-    name: "Microphone Mute"
+    name: "Mute Microphone"
     update_interval: 1s
     on_turn_on:
       - if:
@@ -1965,7 +1965,7 @@ button:
     internal: true
   - platform: template
     id: alarm_dismiss_button
-    name: "Alarm Dismiss"
+    name: "Dismiss Alarm"
     icon: "mdi:bell-off"
     on_press:
       - switch.turn_off: timer_ringing
