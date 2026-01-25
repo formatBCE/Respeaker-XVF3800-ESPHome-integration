@@ -1732,7 +1732,7 @@ select:
     icon: "mdi:play-circle"
     optimistic: true
     restore_value: true
-    initial_option: "Timer Finished"
+    initial_option: "Timer Elapsed"
     options:
       - "Mute"
       - "Unmute"
@@ -2010,9 +2010,9 @@ button:
               return std::string("center_button_long_press_sound");
             } else if (selection == "Factory Reset INITIATED") {
               return std::string("factory_reset_initiated_sound");
-            } else if (selection == "Factory reset CANCELLED") {
+            } else if (selection == "Factory Reset CANCELLED") {
               return std::string("factory_reset_cancelled_sound");
-            } else if (selection == "Factory reset CONFIRMED") {
+            } else if (selection == "Factory Reset CONFIRMED") {
               return std::string("factory_reset_confirmed_sound");
             } else if (selection == "Error HA cloud expired") {
               return std::string("error_cloud_expired");
