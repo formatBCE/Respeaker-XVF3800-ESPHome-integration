@@ -120,7 +120,7 @@ wifi:
   use_psram: true
   ap:
     ssid: "reSpeaker_XVF-3800"
-    password: "esphome"
+    password: "esphome1234"
   # Add power management and connection optimizations
   power_save_mode: none  # Disable power saving for better performance
   reboot_timeout: 10min  # Prevent unnecessary reboots
@@ -360,7 +360,7 @@ switch:
   # Mute Sound Switch.
   - platform: template
     id: mute_sound
-    name: Mute-unmute sound
+    name: Mute/Unmute Sound
     icon: "mdi:bullhorn"
     entity_category: config
     optimistic: true
@@ -368,7 +368,7 @@ switch:
   # Wake Word Sound Switch.
   - platform: template
     id: wake_sound
-    name: Wake sound
+    name: Wake Sound
     icon: "mdi:bullhorn"
     entity_category: config
     optimistic: true
@@ -456,14 +456,14 @@ sensor:
 text_sensor:
   - platform: template
     id: next_timer_name
-    name: "Next timer name"
+    name: "Next timer Name"
     icon: "mdi:timer"
     disabled_by_default: true
   - platform: template
     id: alarm_time
     internal: true
   - platform: template
-    name: "Current device time"
+    name: "Current Device Time"
     id: current_time
     icon: mdi:clock
 
@@ -1680,30 +1680,30 @@ micro_wake_word:
 
 select:
   - platform: template
-    name: "Wake word sensitivity"
+    name: "Wake Word Sensitivity"
     optimistic: true
-    initial_option: Slightly sensitive
+    initial_option: Slight
     restore_value: true
     entity_category: config
     options:
-      - Slightly sensitive
-      - Moderately sensitive
-      - Very sensitive
+      - Slight
+      - Moderate
+      - Extreme
     on_value:
       # Sets specific wake word probabilities computed for each particular model
       # Note probability cutoffs are set as a quantized uint8 value, each comment has the corresponding floating point cutoff
       # False Accepts per Hour values are tested against all units and channels from the Dinner Party Corpus.
       # These cutoffs apply only to the specific models included in the firmware: okay_nabu@20241226.3, hey_jarvis@v2, hey_mycroft@v2
       lambda: |-
-        if (x == "Slightly sensitive") {
+        if (x == "Slight") {
           id(okay_nabu).set_probability_cutoff(217);    // 0.85 -> 0.000 FAPH on DipCo (Manifest's default)
           id(hey_jarvis).set_probability_cutoff(247);   // 0.97 -> 0.563 FAPH on DipCo (Manifest's default)
           id(hey_mycroft).set_probability_cutoff(253);  // 0.99 -> 0.567 FAPH on DipCo
-        } else if (x == "Moderately sensitive") {
+        } else if (x == "Moderate") {
           id(okay_nabu).set_probability_cutoff(176);    // 0.69 -> 0.376 FAPH on DipCo
           id(hey_jarvis).set_probability_cutoff(235);   // 0.92 -> 0.939 FAPH on DipCo
           id(hey_mycroft).set_probability_cutoff(242);  // 0.95 -> 1.502 FAPH on DipCo (Manifest's default)
-        } else if (x == "Very sensitive") {
+        } else if (x == "Extreme") {
           id(okay_nabu).set_probability_cutoff(143);    // 0.56 -> 0.751 FAPH on DipCo
           id(hey_jarvis).set_probability_cutoff(212);   // 0.83 -> 1.502 FAPH on DipCo
           id(hey_mycroft).set_probability_cutoff(237);  // 0.93 -> 1.878 FAPH on DipCo
@@ -1714,14 +1714,14 @@ select:
     disabled_by_default: true
   - platform: template
     optimistic: true
-    name: "Alarm action"
+    name: "Alarm Action"
     id: alarm_action
     icon: mdi:bell-plus
     options:
-      - "Play sound"
-      - "Send event"
-      - "Sound and event"
-    initial_option: "Play sound"
+      - "Play Sound"
+      - "Send Event"
+      - "Sound + Event"
+    initial_option: "Play Sound"
     on_value:
       then:
         - lambda: |-
@@ -1732,20 +1732,20 @@ select:
     icon: "mdi:play-circle"
     optimistic: true
     restore_value: true
-    initial_option: "Timer finished"
+    initial_option: "Timer Finished"
     options:
-      - "Mute switch on"
-      - "Mute switch off"
-      - "Timer finished"
-      - "Wake word triggered"
-      - "Center button press"
-      - "Center button double press"
-      - "Center button triple press"
-      - "Center button long press"
-      - "Factory reset initiated"
-      - "Factory reset cancelled"
-      - "Factory reset confirmed"
-      - "Error cloud expired"
+      - "Mute"
+      - "Unmute"
+      - "Timer Elapsed"
+      - "Wake Word Triggered"
+      - "Center Button Press"
+      - "Center Button Press x2"
+      - "Center Button Press x3"
+      - "Center Button Long Press"
+      - "Factory Reset INITIATED"
+      - "Factory Reset CANCELLED"
+      - "Factory Reset CONFIRMED"
+      - "Error HA cloud expired"
   - platform: template
     name: "LED Ring Color Preset"
     id: user_led_color_preset
@@ -1992,29 +1992,29 @@ button:
           priority: true
           sound_file: !lambda |-
             auto selection = id(play_sound_select).current_option();
-            if (selection == "Mute switch on") {
+            if (selection == "Mute") {
               return std::string("mute_switch_on_sound");
-            } else if (selection == "Mute switch off") {
+            } else if (selection == "Unmute") {
               return std::string("mute_switch_off_sound");
-            } else if (selection == "Timer finished") {
+            } else if (selection == "Timer Elapsed") {
               return std::string("timer_finished_sound");
-            } else if (selection == "Wake word triggered") {
+            } else if (selection == "Wake Word Triggered") {
               return std::string("wake_word_triggered_sound");
-            } else if (selection == "Center button press") {
+            } else if (selection == "Center Button Press") {
               return std::string("center_button_press_sound");
-            } else if (selection == "Center button double press") {
+            } else if (selection == "Center Button Press x2") {
               return std::string("center_button_double_press_sound");
-            } else if (selection == "Center button triple press") {
+            } else if (selection == "Center Button Press x3") {
               return std::string("center_button_triple_press_sound");
-            } else if (selection == "Center button long press") {
+            } else if (selection == "Center Button Long Press") {
               return std::string("center_button_long_press_sound");
-            } else if (selection == "Factory reset initiated") {
+            } else if (selection == "Factory Reset INITIATED") {
               return std::string("factory_reset_initiated_sound");
-            } else if (selection == "Factory reset cancelled") {
+            } else if (selection == "Factory reset CANCELLED") {
               return std::string("factory_reset_cancelled_sound");
-            } else if (selection == "Factory reset confirmed") {
+            } else if (selection == "Factory reset CONFIRMED") {
               return std::string("factory_reset_confirmed_sound");
-            } else if (selection == "Error cloud expired") {
+            } else if (selection == "Error HA cloud expired") {
               return std::string("error_cloud_expired");
             } else if (selection == "UI system tink") {
               return std::string("${ui_system_tink_sound_file}");
