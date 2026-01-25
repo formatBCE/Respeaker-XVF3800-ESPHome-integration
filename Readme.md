@@ -19,7 +19,7 @@ This repository provides custom ESPHome components, an example configuration, an
 
 ## Known issues
 1. red twinkle indicators are disabled pending investigation (see no-HA and not-ready LED states in the example config)
-2. timezone autodetection has been disabled because it keeps switching to UTC
+2. timezone is hardcoded to America/Toronto (no autodetection)
 3. config uses my personal creds because I cba to manually input it every time I update. Scrub mine and put yours before flashing.
 
 ## Quick start
