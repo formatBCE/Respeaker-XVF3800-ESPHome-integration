@@ -448,16 +448,16 @@ text_sensor:
     name: "Current Device Time"
     id: current_time
     icon: mdi:clock
-  # Experimental/erratic: Home Assistant timezone detection is disabled.
-  # - platform: homeassistant
-  #   id: ha_time_zone
-  #   entity_id: sensor.time_zone
-  #   internal: true
-  #   on_value:
-  #     then:
-  #       - script.execute:
-  #           id: apply_time_zone
-  #           tz_string: !lambda return x;
+  # Experimental/erratic: Home Assistant timezone detection is enabled to support fallback TZ.
+  - platform: homeassistant
+    id: ha_time_zone
+    entity_id: sensor.time_zone
+    internal: true
+    on_value:
+      then:
+        - script.execute:
+            id: apply_time_zone
+            tz_string: !lambda return x;
 
 text:
   - platform: template
@@ -1333,33 +1333,33 @@ script:
             last_time_string = current_time_string;
           }
   # Experimental/erratic: timezone helper scripts are sequestered.
-  # - id: apply_time_zone
-  #   parameters:
-  #     tz_string: string
-  #   then:
-  #     - lambda: |-
-  #         const std::string tz = tz_string;
-  #
-  #         if (tz.empty() || tz == "unknown" || tz == "unavailable") {
-  #           ESP_LOGW("tz", "Rejected TZ (empty/unavailable)");
-  #           return;
-  #         }
-  #         if (tz.size() > 80) {
-  #           ESP_LOGW("tz", "Rejected TZ (too long): %s", tz.c_str());
-  #           return;
-  #         }
-  #         for (char c : tz) {
-  #           const unsigned char uc = static_cast<unsigned char>(c);
-  #           if (uc < 32 || uc > 126) {
-  #             ESP_LOGW("tz", "Rejected TZ (non-printable chars)");
-  #             return;
-  #           }
-  #         }
-  #
-  #         setenv("TZ", tz.c_str(), 1);
-  #         tzset();
-  #         id(saved_time_zone) = tz;
-  #         id(publish_current_time).execute();
+  - id: apply_time_zone
+    parameters:
+      tz_string: string
+    then:
+      - lambda: |-
+          const std::string tz = tz_string;
+
+          if (tz.empty() || tz == "unknown" || tz == "unavailable") {
+            ESP_LOGW("tz", "Rejected TZ (empty/unavailable)");
+            return;
+          }
+          if (tz.size() > 80) {
+            ESP_LOGW("tz", "Rejected TZ (too long): %s", tz.c_str());
+            return;
+          }
+          for (char c : tz) {
+            const unsigned char uc = static_cast<unsigned char>(c);
+            if (uc < 32 || uc > 126) {
+              ESP_LOGW("tz", "Rejected TZ (non-printable chars)");
+              return;
+            }
+          }
+
+          setenv("TZ", tz.c_str(), 1);
+          tzset();
+          id(saved_time_zone) = tz;
+          id(publish_current_time).execute();
   # - id: set_device_time_zone
   #   then:
   #     - if:
