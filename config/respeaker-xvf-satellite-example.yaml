@@ -1752,6 +1752,42 @@ select:
   #           }
   #           id(apply_time_zone).execute(x);
   - platform: template
+    name: "Time Zone (Fallback)"
+    id: time_zone_fallback
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    initial_option: "UTC"
+    options:
+      - "UTC"
+      - "America/New_York"
+      - "America/Chicago"
+      - "America/Denver"
+      - "America/Los_Angeles"
+      - "America/Phoenix"
+      - "America/Sao_Paulo"
+      - "Europe/London"
+      - "Europe/Berlin"
+      - "Europe/Paris"
+      - "Europe/Madrid"
+      - "Europe/Rome"
+      - "Europe/Stockholm"
+      - "Asia/Dubai"
+      - "Asia/Kolkata"
+      - "Asia/Shanghai"
+      - "Asia/Tokyo"
+      - "Asia/Singapore"
+      - "Australia/Sydney"
+    on_value:
+      then:
+        - lambda: |-
+            const std::string tz = id(ha_time_zone).state;
+            if (!tz.empty() && tz != "unknown" && tz != "unavailable") {
+              ESP_LOGI("tz", "Home Assistant timezone available (%s). Ignoring fallback selection.", tz.c_str());
+              return;
+            }
+            id(apply_time_zone).execute(x);
+  - platform: template
     name: "Wake Word Sensitivity"
     optimistic: true
     initial_option: Slight
@@ -1804,7 +1840,7 @@ select:
     icon: "mdi:play-circle"
     optimistic: true
     restore_value: true
-    initial_option: "Timer Finished"
+    initial_option: "Timer Elapsed"
     options:
       - "Mute"
       - "Unmute"
@@ -2082,9 +2118,9 @@ button:
               return std::string("center_button_long_press_sound");
             } else if (selection == "Factory Reset INITIATED") {
               return std::string("factory_reset_initiated_sound");
-            } else if (selection == "Factory reset CANCELLED") {
+            } else if (selection == "Factory Reset CANCELLED") {
               return std::string("factory_reset_cancelled_sound");
-            } else if (selection == "Factory reset CONFIRMED") {
+            } else if (selection == "Factory Reset CONFIRMED") {
               return std::string("factory_reset_confirmed_sound");
             } else if (selection == "Error HA cloud expired") {
               return std::string("error_cloud_expired");
