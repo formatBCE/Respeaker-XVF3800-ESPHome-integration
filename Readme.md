@@ -6,6 +6,13 @@
 ## Overview
 This repository provides custom ESPHome components, an example configuration, and helper scripts for running a Respeaker XVF3800 USB 4-mic array as a Home Assistant voice satellite. The goal is to make the XVF3800 usable over I2C with ESPHome, including firmware management and some device state exposure.
 
+## Differences from upstream
+This fork adds several enhancements beyond the upstream project:
+- An alarm dismiss button.
+- Play sound + light effects helpers.
+- Advanced alarm setting capability.
+- Improved formatting and readability across the example configuration and scripts.
+
 ## What's included
 - **ESPHome components**
   - `respeaker_xvf3800`: I2C control of the XVF3800, including mute, DFU firmware update helpers, and LED beam direction telemetry.
