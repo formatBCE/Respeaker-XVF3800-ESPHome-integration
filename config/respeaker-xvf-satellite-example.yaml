@@ -1008,14 +1008,15 @@ script:
   # Script executed when the device has no connection to Home Assistant
   - id: control_leds_no_ha_connection_state
     then:
+      # Red twinkle disabled pending investigation.
       - script.execute:
           id: led_set_effect
-          effect: "twinkle"
-          r: 255.0
+          effect: "off"
+          r: 0.0
           g: 0.0
           b: 0.0
-          speed: 10.0
-          brightness: 0.4
+          speed: 0.0
+          brightness: 0.0
 
   # Script executed when the voice assistant is waiting for a command (After the wake word)
   - id: control_leds_voice_assistant_waiting_for_command_phase
@@ -1082,14 +1083,15 @@ script:
   # Script executed when the voice assistant is not ready
   - id: control_leds_voice_assistant_not_ready_phase
     then:
+      # Red twinkle disabled pending investigation.
       - script.execute:
           id: led_set_effect
-          effect: "twinkle"
-          r: 255.0
+          effect: "off"
+          r: 0.0
           g: 0.0
           b: 0.0
-          speed: 5.0
-          brightness: 0.8
+          speed: 0.0
+          brightness: 0.0
 
   # Script executed when the volume is changed
   - id: control_leds_volume_changed
