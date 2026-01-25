@@ -82,7 +82,10 @@ esphome:
             auto call = id(alarm_action).make_call();
             call.set_option(id(saved_alarm_action));
             call.perform();
-        - script.execute: set_device_time_zone
+        - lambda: |-
+            // Experimental/erratic: timezone auto-detection is sequestered below.
+            setenv("TZ", "America/Toronto", 1);
+            tzset();
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -190,13 +193,14 @@ api:
             id(alarm_time).publish_state(s);
             id(alarm_time_input).publish_state(s);
             id(saved_alarm_time) = s;
-    - action: set_time_zone
-      variables:
-        posix_time_zone: string
-      then:
-        - script.execute:
-            id: apply_time_zone
-            tz_string: !lambda return posix_time_zone;
+    # Experimental/erratic: time zone updates are sequestered below.
+    # - action: set_time_zone
+    #   variables:
+    #     posix_time_zone: string
+    #   then:
+    #     - script.execute:
+    #         id: apply_time_zone
+    #         tz_string: !lambda return posix_time_zone;
   on_client_connected:
     - script.execute: control_leds
   on_client_disconnected:
@@ -276,7 +280,7 @@ globals:
   - id: saved_time_zone
     type: std::string
     restore_value: yes
-    initial_value: '"UTC"'
+    initial_value: '"America/Toronto"'
   - id: saved_alarm_action
     type: std::string
     restore_value: yes
@@ -444,15 +448,16 @@ text_sensor:
     name: "Current Device Time"
     id: current_time
     icon: mdi:clock
-  - platform: homeassistant
-    id: ha_time_zone
-    entity_id: sensor.time_zone
-    internal: true
-    on_value:
-      then:
-        - script.execute:
-            id: apply_time_zone
-            tz_string: !lambda return x;
+  # Experimental/erratic: Home Assistant timezone detection is disabled.
+  # - platform: homeassistant
+  #   id: ha_time_zone
+  #   entity_id: sensor.time_zone
+  #   internal: true
+  #   on_value:
+  #     then:
+  #       - script.execute:
+  #           id: apply_time_zone
+  #           tz_string: !lambda return x;
 
 text:
   - platform: template
@@ -1325,48 +1330,49 @@ script:
             id(current_time).publish_state(current_time_string);
             last_time_string = current_time_string;
           }
-  - id: apply_time_zone
-    parameters:
-      tz_string: string
-    then:
-      - lambda: |-
-          const std::string tz = tz_string;
-
-          if (tz.empty() || tz == "unknown" || tz == "unavailable") {
-            ESP_LOGW("tz", "Rejected TZ (empty/unavailable)");
-            return;
-          }
-          if (tz.size() > 80) {
-            ESP_LOGW("tz", "Rejected TZ (too long): %s", tz.c_str());
-            return;
-          }
-          for (char c : tz) {
-            const unsigned char uc = static_cast<unsigned char>(c);
-            if (uc < 32 || uc > 126) {
-              ESP_LOGW("tz", "Rejected TZ (non-printable chars)");
-              return;
-            }
-          }
-
-          setenv("TZ", tz.c_str(), 1);
-          tzset();
-          id(saved_time_zone) = tz;
-          id(publish_current_time).execute();
-  - id: set_device_time_zone
-    then:
-      - if:
-          condition:
-            lambda: |-
-              const std::string tz = id(ha_time_zone).state;
-              return !tz.empty() && tz != "unknown" && tz != "unavailable";
-          then:
-            - script.execute:
-                id: apply_time_zone
-                tz_string: !lambda return id(ha_time_zone).state;
-          else:
-            - script.execute:
-                id: apply_time_zone
-                tz_string: !lambda return id(saved_time_zone);
+  # Experimental/erratic: timezone helper scripts are sequestered.
+  # - id: apply_time_zone
+  #   parameters:
+  #     tz_string: string
+  #   then:
+  #     - lambda: |-
+  #         const std::string tz = tz_string;
+  #
+  #         if (tz.empty() || tz == "unknown" || tz == "unavailable") {
+  #           ESP_LOGW("tz", "Rejected TZ (empty/unavailable)");
+  #           return;
+  #         }
+  #         if (tz.size() > 80) {
+  #           ESP_LOGW("tz", "Rejected TZ (too long): %s", tz.c_str());
+  #           return;
+  #         }
+  #         for (char c : tz) {
+  #           const unsigned char uc = static_cast<unsigned char>(c);
+  #           if (uc < 32 || uc > 126) {
+  #             ESP_LOGW("tz", "Rejected TZ (non-printable chars)");
+  #             return;
+  #           }
+  #         }
+  #
+  #         setenv("TZ", tz.c_str(), 1);
+  #         tzset();
+  #         id(saved_time_zone) = tz;
+  #         id(publish_current_time).execute();
+  # - id: set_device_time_zone
+  #   then:
+  #     - if:
+  #         condition:
+  #           lambda: |-
+  #             const std::string tz = id(ha_time_zone).state;
+  #             return !tz.empty() && tz != "unknown" && tz != "unavailable";
+  #         then:
+  #           - script.execute:
+  #               id: apply_time_zone
+  #               tz_string: !lambda return id(ha_time_zone).state;
+  #         else:
+  #           - script.execute:
+  #               id: apply_time_zone
+  #               tz_string: !lambda return id(saved_time_zone);
 
 i2s_audio:
   - id: i2s_output
@@ -1708,6 +1714,43 @@ micro_wake_word:
                                 wake_word: !lambda return wake_word;
 
 select:
+  # Experimental/erratic: fallback timezone dropdown is sequestered.
+  # - platform: template
+  #   name: "Time Zone (Fallback)"
+  #   id: time_zone_fallback
+  #   entity_category: config
+  #   optimistic: true
+  #   restore_value: true
+  #   initial_option: "UTC"
+  #   options:
+  #     - "UTC"
+  #     - "America/New_York"
+  #     - "America/Chicago"
+  #     - "America/Denver"
+  #     - "America/Los_Angeles"
+  #     - "America/Phoenix"
+  #     - "America/Sao_Paulo"
+  #     - "Europe/London"
+  #     - "Europe/Berlin"
+  #     - "Europe/Paris"
+  #     - "Europe/Madrid"
+  #     - "Europe/Rome"
+  #     - "Europe/Stockholm"
+  #     - "Asia/Dubai"
+  #     - "Asia/Kolkata"
+  #     - "Asia/Shanghai"
+  #     - "Asia/Tokyo"
+  #     - "Asia/Singapore"
+  #     - "Australia/Sydney"
+  #   on_value:
+  #     then:
+  #       - lambda: |-
+  #           const std::string tz = id(ha_time_zone).state;
+  #           if (!tz.empty() && tz != "unknown" && tz != "unavailable") {
+  #             ESP_LOGI("tz", "Home Assistant timezone available (%s). Ignoring fallback selection.", tz.c_str());
+  #             return;
+  #           }
+  #           id(apply_time_zone).execute(x);
   - platform: template
     name: "Time Zone (Fallback)"
     id: time_zone_fallback
