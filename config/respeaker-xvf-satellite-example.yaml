@@ -1786,6 +1786,26 @@ select:
       - "Factory reset cancelled"
       - "Factory reset confirmed"
       - "Error cloud expired"
+      - "UI system tink"
+      - "UI system tock"
+      - "UI navigation pop"
+      - "UI navigation push"
+      - "UI acknowledgment received"
+      - "UI acknowledgment sent"
+      - "UI payment success"
+      - "UI payment failure"
+      - "UI low power alert"
+      - "UI received message"
+      - "UI sent message"
+      - "UI key press click"
+      - "UI key press delete"
+      - "UI focus change small"
+      - "UI focus change large"
+      - "UI short double high"
+      - "UI short double low"
+      - "UI sedentary timer haptic"
+      - "UI time tick"
+      - "UI camera shutter burst"
   - platform: template
     name: "LED Ring Color Preset"
     id: user_led_color_preset
@@ -2056,6 +2076,46 @@ button:
               return std::string("${factory_reset_confirmed_sound_file}");
             } else if (selection == "Error cloud expired") {
               return std::string("${error_cloud_expired_sound_file}");
+            } else if (selection == "UI system tink") {
+              return std::string("${ui_system_tink_sound_file}");
+            } else if (selection == "UI system tock") {
+              return std::string("${ui_system_tock_sound_file}");
+            } else if (selection == "UI navigation pop") {
+              return std::string("${ui_system_navigation_pop_sound_file}");
+            } else if (selection == "UI navigation push") {
+              return std::string("${ui_system_navigation_push_sound_file}");
+            } else if (selection == "UI acknowledgment received") {
+              return std::string("${ui_system_acknowledgment_received_sound_file}");
+            } else if (selection == "UI acknowledgment sent") {
+              return std::string("${ui_system_acknowledgment_sent_sound_file}");
+            } else if (selection == "UI payment success") {
+              return std::string("${ui_system_payment_success_sound_file}");
+            } else if (selection == "UI payment failure") {
+              return std::string("${ui_system_payment_failure_sound_file}");
+            } else if (selection == "UI low power alert") {
+              return std::string("${ui_system_low_power_alert_sound_file}");
+            } else if (selection == "UI received message") {
+              return std::string("${ui_system_received_message_sound_file}");
+            } else if (selection == "UI sent message") {
+              return std::string("${ui_system_sent_message_sound_file}");
+            } else if (selection == "UI key press click") {
+              return std::string("${ui_system_key_press_click_sound_file}");
+            } else if (selection == "UI key press delete") {
+              return std::string("${ui_system_key_press_delete_sound_file}");
+            } else if (selection == "UI focus change small") {
+              return std::string("${ui_system_focus_change_small_sound_file}");
+            } else if (selection == "UI focus change large") {
+              return std::string("${ui_system_focus_change_large_sound_file}");
+            } else if (selection == "UI short double high") {
+              return std::string("${ui_system_short_double_high_sound_file}");
+            } else if (selection == "UI short double low") {
+              return std::string("${ui_system_short_double_low_sound_file}");
+            } else if (selection == "UI sedentary timer haptic") {
+              return std::string("${ui_system_sedentary_timer_haptic_sound_file}");
+            } else if (selection == "UI time tick") {
+              return std::string("${ui_system_time_tick_sound_file}");
+            } else if (selection == "UI camera shutter burst") {
+              return std::string("${ui_system_camera_shutter_burst_sound_file}");
             }
             return std::string("${timer_finished_sound_file}");
   - platform: restart
