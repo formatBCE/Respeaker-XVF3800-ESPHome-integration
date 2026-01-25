@@ -1435,20 +1435,6 @@ media_source:
         file: ${timer_finished_sound_file}
       - id: wake_word_triggered_sound
         file: ${wake_word_triggered_sound_file}
-      - id: center_button_press_sound
-        file: ${center_button_press_sound_file}
-      - id: center_button_double_press_sound
-        file: ${center_button_double_press_sound_file}
-      - id: center_button_triple_press_sound
-        file: ${center_button_triple_press_sound_file}
-      - id: center_button_long_press_sound
-        file: ${center_button_long_press_sound_file}
-      - id: factory_reset_initiated_sound
-        file: ${factory_reset_initiated_sound_file}
-      - id: factory_reset_cancelled_sound
-        file: ${factory_reset_cancelled_sound_file}
-      - id: factory_reset_confirmed_sound
-        file: ${factory_reset_confirmed_sound_file}
       - id: error_cloud_expired
         file: ${error_cloud_expired_sound_file}
       - id: ui_system_tink_sound
