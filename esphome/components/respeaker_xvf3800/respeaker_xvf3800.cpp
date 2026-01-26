@@ -67,6 +67,14 @@ void RespeakerXVF3800::dump_config() {
 }
 
 void RespeakerXVF3800::loop() {
+  if (this->processing_timeout_ms_ > 0 &&
+      (this->dfu_update_status_ == UPDATE_IN_PROGRESS || this->dfu_update_status_ == UPDATE_REBOOT_PENDING ||
+       this->dfu_update_status_ == UPDATE_VERIFY_NEW_VERSION) &&
+      (millis() - this->update_start_time_ > this->processing_timeout_ms_)) {
+    ESP_LOGE(TAG, "DFU processing timed out after %" PRIu32 " ms", this->processing_timeout_ms_);
+    this->dfu_update_status_ = UPDATE_TIMEOUT;
+  }
+
   switch (this->dfu_update_status_) {
     case UPDATE_IN_PROGRESS:
     case UPDATE_REBOOT_PENDING:

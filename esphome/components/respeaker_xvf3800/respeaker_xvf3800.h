@@ -1,12 +1,14 @@
 #pragma once
 
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/number/number.h"
 #include "esphome/components/select/select.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -14,6 +16,10 @@
 #include <cstring>
 
 namespace esphome {
+namespace binary_sensor {
+class BinarySensor;
+}  // namespace binary_sensor
+
 namespace respeaker_xvf3800 {
 
 // Forward-declare the main component class
@@ -195,10 +201,6 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
     this->firmware_bin_length_ = len;
   }
 
-  void set_mute_state(binary_sensor::BinarySensor* mute_state) {
-    this->mute_state_ = mute_state;
-  }
-
   void set_firmware_version(text_sensor::TextSensor* firmware_version) {
     this->firmware_version_ = firmware_version;
   }
@@ -208,6 +210,10 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
     this->firmware_bin_version_minor_ = minor;
     this->firmware_bin_version_patch_ = patch;
   }
+#ifdef USE_BINARY_SENSOR
+  void set_mute_state(binary_sensor::BinarySensor *mute_state) { this->mute_state_ = mute_state; }
+#endif
+  void set_processing_timeout(uint32_t timeout_ms) { this->processing_timeout_ms_ = timeout_ms; }
 
   void start_dfu_update();
   uint8_t read_vnr();
@@ -248,7 +254,6 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   bool dfu_check_if_ready_();
 
   GPIOPin *reset_pin_{nullptr};
-  binary_sensor::BinarySensor *mute_state_{nullptr};
   text_sensor::TextSensor *firmware_version_{nullptr};
 
   bool get_firmware_version_();
@@ -272,12 +277,16 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   uint32_t last_ready_{0};
   uint32_t status_last_read_ms_{0};
   uint32_t update_start_time_{0};
+  uint32_t processing_timeout_ms_{0};
   RespeakerXVF3800UpdaterStatus dfu_update_status_{UPDATE_OK};
 
   // Child components
   MuteSwitch *mute_switch_{nullptr};
   DFUVersionTextSensor *dfu_version_sensor_{nullptr};
   LEDBeamSensor *led_beam_sensor_{nullptr};
+#ifdef USE_BINARY_SENSOR
+  binary_sensor::BinarySensor *mute_state_{nullptr};
+#endif
   
   // Helper method for XMOS communication
   void xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *value, uint8_t write_byte_num);
