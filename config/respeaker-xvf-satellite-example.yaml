@@ -353,10 +353,6 @@ switch:
     id: alarm_on
     icon: mdi:bell-badge
     name: "Alarm on"
-    on_turn_on:
-      - script.execute: control_leds
-    on_turn_off:
-      - script.execute: control_leds
 
 binary_sensor:
 
@@ -687,14 +683,14 @@ script:
               colors[6] = mute_color;
             } else {
               float num_leds_on = volume * NUM_LEDS;
-              float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+              float master_brightness = id(user_led_ring_brightness).state;
 
               for (int i = 0; i < NUM_LEDS; i++) {
                 float brightness = clamp(num_leds_on - i, 0.0f, 1.0f);
                 if (brightness > 0.0f) {
-                  uint8_t r = (uint8_t)(id(effect_color_r) * brightness * master_brightness);
-                  uint8_t g = (uint8_t)(id(effect_color_g) * brightness * master_brightness);
-                  uint8_t b = (uint8_t)(id(effect_color_b) * brightness * master_brightness);
+                  uint8_t r = (uint8_t)(id(user_led_ring_color_r) * brightness * master_brightness);
+                  uint8_t g = (uint8_t)(id(user_led_ring_color_g) * brightness * master_brightness);
+                  uint8_t b = (uint8_t)(id(user_led_ring_color_b) * brightness * master_brightness);
                   colors[i] = (r << 16) | (g << 8) | b;
                 }
               }
@@ -995,6 +991,9 @@ script:
       - delay: 2s
       - lambda: |-
           id(volume_display_active) = false;
+          // Turn off LEDs - any active effect will take over on next interval tick
+          uint32_t colors[12] = {0};
+          id(respeaker).set_led_ring(colors);
 
   # Script executed when the timer is ringing, to control the LEDs
   - id: control_leds_timer_ringing
