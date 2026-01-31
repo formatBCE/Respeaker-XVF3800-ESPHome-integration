@@ -145,7 +145,7 @@ void RespeakerXVF3800::start_dfu_update() {
 
 RespeakerXVF3800UpdaterStatus RespeakerXVF3800::dfu_update_send_block_() {
   i2c::ErrorCode error_code = i2c::NO_ERROR;
-  uint8_t dfu_dnload_req[MAX_XFER + 6] = {240, 1, 130,  // resid, cmd_id, payload length,
+  uint8_t dfu_dnload_req[MAX_XFER + 5] = {240, 1, 0,  // resid, cmd_id, payload length,
                                           0, 0};        // additional payload length (set below)
                                                         // followed by payload data with null terminator
   if (millis() > this->last_ready_ + DFU_TIMEOUT_MS) {
@@ -239,7 +239,7 @@ RespeakerXVF3800UpdaterStatus RespeakerXVF3800::dfu_update_send_block_() {
 }
 
 uint32_t RespeakerXVF3800::load_buf_(uint8_t *buf, const uint8_t max_len, const uint32_t offset) {
-  if (offset > this->firmware_bin_length_) {
+  if (offset >= this->firmware_bin_length_) {
     ESP_LOGE(TAG, "Invalid offset");
     return 0;
   }
@@ -249,7 +249,7 @@ uint32_t RespeakerXVF3800::load_buf_(uint8_t *buf, const uint8_t max_len, const 
     buf_len = max_len;
   }
 
-  for (uint8_t i = 0; i < max_len; i++) {
+  for (uint32_t i = 0; i < buf_len; i++) {
     buf[i] = this->firmware_bin_[offset + i];
   }
   return buf_len;
