@@ -1148,7 +1148,7 @@ script:
           service: media_player.repeat_set
           data:
             entity_id: ${external_media_player_entity_id}
-            repeat: off
+            repeat: "off"
       - lambda: |-
             id(external_media_player)->set_playlist_delay_ms(1, 0);
 
