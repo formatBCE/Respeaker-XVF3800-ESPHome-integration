@@ -330,7 +330,7 @@ switch:
   # Mute Sound Switch.
   - platform: template
     id: mute_sound
-    name: Mute/Unmute Sound
+    name: Mute⁄Unmute Sound
     icon: "mdi:bullhorn"
     entity_category: config
     optimistic: true
