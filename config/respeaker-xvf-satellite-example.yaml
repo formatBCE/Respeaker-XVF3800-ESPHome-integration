@@ -49,6 +49,7 @@ substitutions:
   ui_system_sedentary_timer_haptic_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/SedentaryTimer_Haptic.m4a
   ui_system_time_tick_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/WorkoutCountdown_Haptic.m4a
   ui_system_camera_shutter_burst_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/camera_shutter_burst.m4a
+  external_media_player_entity_id: media_player.media_player
 esphome:
   name: respeaker-xvf3800
   friendly_name: reSpeaker XVF3800
@@ -1130,9 +1131,11 @@ script:
   # Script executed when the timer is ringing, to repeat the timer finished sound.
   - id: enable_repeat_one
     then:
-      - media_player.repeat_one:
-          id: external_media_player
-          announcement: true
+      - homeassistant.service:
+          service: media_player.repeat_set
+          data:
+            entity_id: ${external_media_player_entity_id}
+            repeat: one
       # Turn on the repeat mode and pause for 500 ms between playlist items/repeats
       - lambda: |-
             id(external_media_player)->set_playlist_delay_ms(1, 500);
@@ -1141,9 +1144,11 @@ script:
   - id: disable_repeat
     then:
       # Turn off the repeat mode and pause for 0 ms between playlist items/repeats
-      - media_player.repeat_off:
-          id: external_media_player
-          announcement: true
+      - homeassistant.service:
+          service: media_player.repeat_set
+          data:
+            entity_id: ${external_media_player_entity_id}
+            repeat: off
       - lambda: |-
             id(external_media_player)->set_playlist_delay_ms(1, 0);
 
