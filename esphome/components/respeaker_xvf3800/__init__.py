@@ -3,6 +3,7 @@ from pathlib import Path
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, core, external_files
+from esphome.core import CORE
 from esphome.components import i2c, switch, text_sensor, sensor, number, select
 from esphome.const import (
     CONF_ID, 
@@ -74,26 +75,34 @@ def download_firmware(config):
 
     return config
 
+
+def _validate_esp32_platform(config):
+    if not CORE.is_esp32:
+        raise cv.Invalid("Respeaker XVF3800 requires an ESP32 variant.")
+    return config
+
 # Define the configuration schema for the component
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(RespeakerXVF3800),
-    cv.Optional(CONF_MUTE_SWITCH): switch.switch_schema(
-        MuteSwitch,
-        icon="mdi:microphone-off",
-    ).extend(cv.polling_component_schema("1s")),
-    cv.Optional(CONF_DFU_VERSION): text_sensor.text_sensor_schema(
-        DFUVersionTextSensor,
-        icon="mdi:chip",
-    ).extend(cv.polling_component_schema("30s")),
-    cv.Optional(CONF_LED_BEAM_SENSOR): sensor.sensor_schema(
-        LEDBeamSensor,
-        icon="mdi:led-on",
-        accuracy_decimals=0,
-        unit_of_measurement="",
-    ).extend(cv.polling_component_schema("500ms")),
-    cv.Optional(CONF_PROCESSING_TIMEOUT): cv.positive_time_period_seconds,
-    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-    cv.Optional(CONF_FIRMWARE): cv.All(
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(RespeakerXVF3800),
+            cv.Optional(CONF_MUTE_SWITCH): switch.switch_schema(
+                MuteSwitch,
+                icon="mdi:microphone-off",
+            ).extend(cv.polling_component_schema("1s")),
+            cv.Optional(CONF_DFU_VERSION): text_sensor.text_sensor_schema(
+                DFUVersionTextSensor,
+                icon="mdi:chip",
+            ).extend(cv.polling_component_schema("30s")),
+            cv.Optional(CONF_LED_BEAM_SENSOR): sensor.sensor_schema(
+                LEDBeamSensor,
+                icon="mdi:led-on",
+                accuracy_decimals=0,
+                unit_of_measurement="",
+            ).extend(cv.polling_component_schema("500ms")),
+            cv.Optional(CONF_PROCESSING_TIMEOUT): cv.positive_time_period_seconds,
+            cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+            cv.Optional(CONF_FIRMWARE): cv.All(
                 {
                     cv.Required(CONF_URL): cv.url,
                     cv.Required(CONF_VERSION): cv.version_number,
@@ -129,7 +138,10 @@ CONFIG_SCHEMA = cv.Schema({
                 },
                 download_firmware,
             ),
-}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x2C))
+        }
+    ).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x2C)),
+    _validate_esp32_platform,
+)
 
 
 OTA_RESPEAKER_XVF3800_FLASH_ACTION_SCHEMA = cv.Schema(
