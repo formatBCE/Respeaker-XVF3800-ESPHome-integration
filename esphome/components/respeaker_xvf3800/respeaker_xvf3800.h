@@ -2,6 +2,10 @@
 
 #include <vector>
 
+#if __has_include("esphome/components/binary_sensor/binary_sensor.h")
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/components/automation/automation.h"
