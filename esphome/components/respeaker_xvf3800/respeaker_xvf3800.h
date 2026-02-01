@@ -6,9 +6,6 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/number/number.h"
 #include "esphome/components/select/select.h"
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -16,9 +13,11 @@
 #include <cstring>
 
 namespace esphome {
+#ifdef USE_BINARY_SENSOR
 namespace binary_sensor {
 class BinarySensor;
 }  // namespace binary_sensor
+#endif
 
 namespace respeaker_xvf3800 {
 
