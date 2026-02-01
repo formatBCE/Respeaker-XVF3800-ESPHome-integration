@@ -7,7 +7,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
+#include <cmath>
 #include <cinttypes>
+#include <vector>
 
 namespace esphome {
 namespace respeaker_xvf3800 {
