@@ -502,7 +502,7 @@ script:
   - id: led_set_effect
     mode: restart
     parameters:
-      effect: std::string
+      effect: string
       r: float
       g: float
       b: float
