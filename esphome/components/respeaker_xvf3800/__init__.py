@@ -1,173 +1,228 @@
+import hashlib
+from pathlib import Path
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
-from esphome.components import i2c, sensor, switch, text_sensor
+from esphome import automation, core, external_files
+from esphome.components import i2c, switch, text_sensor, sensor, number, select
 from esphome.const import (
-    CONF_ADDRESS,
-    CONF_ID,
-    CONF_ICON,
-    CONF_NAME,
+    CONF_ID, 
+    CONF_ON_ERROR,
+    CONF_RAW_DATA_ID,
     CONF_TRIGGER_ID,
-    CONF_UNIT_OF_MEASUREMENT,
-    CONF_UPDATE_INTERVAL,
-    CONF_ACCURACY_DECIMALS,
+    CONF_URL,
+    CONF_VERSION
 )
+from esphome.core import HexInt
 
-CONF_PROCESSING_TIMEOUT = "processing_timeout"
+# Dependency declarations
+DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["switch", "text_sensor", "sensor", "number", "select"]
+CODEOWNERS = ["@formatBCE"]
+
+# Configuration keys
 CONF_MUTE_SWITCH = "mute_switch"
 CONF_DFU_VERSION = "dfu_version"
 CONF_LED_BEAM_SENSOR = "led_beam_sensor"
 CONF_FIRMWARE = "firmware"
-CONF_URL = "url"
-CONF_VERSION = "version"
 CONF_MD5 = "md5"
 CONF_ON_BEGIN = "on_begin"
-CONF_ON_PROGRESS = "on_progress"
 CONF_ON_END = "on_end"
-CONF_ON_ERROR = "on_error"
+CONF_ON_PROGRESS = "on_progress"
+CONF_PROCESSING_TIMEOUT = "processing_timeout"
 
-respeaker_xvf3800_ns = cg.esphome_ns.namespace("respeaker_xvf3800")
-RespeakerXVF3800Component = respeaker_xvf3800_ns.class_(
-    "RespeakerXVF3800Component", cg.Component, i2c.I2CDevice
-)
-RespeakerXVF3800MuteSwitch = respeaker_xvf3800_ns.class_(
-    "RespeakerXVF3800MuteSwitch", switch.Switch, cg.Component
-)
-RespeakerXVF3800OnBeginTrigger = respeaker_xvf3800_ns.class_(
-    "RespeakerXVF3800OnBeginTrigger", automation.Trigger.template()
-)
-RespeakerXVF3800OnProgressTrigger = respeaker_xvf3800_ns.class_(
-    "RespeakerXVF3800OnProgressTrigger", automation.Trigger.template(cg.float_)
-)
-RespeakerXVF3800OnEndTrigger = respeaker_xvf3800_ns.class_(
-    "RespeakerXVF3800OnEndTrigger", automation.Trigger.template()
-)
-RespeakerXVF3800OnErrorTrigger = respeaker_xvf3800_ns.class_(
-    "RespeakerXVF3800OnErrorTrigger", automation.Trigger.template(cg.int_)
-)
+DOMAIN = "respeaker_xvf3800"
 
-FIRMWARE_SCHEMA = cv.Schema(
+# Create a namespace for the component
+respeaker_xvf3800_ns = cg.esphome_ns.namespace('respeaker_xvf3800')
+RespeakerXVF3800 = respeaker_xvf3800_ns.class_('RespeakerXVF3800', cg.Component, i2c.I2CDevice)
+RespeakerXVF3800FlashAction = respeaker_xvf3800_ns.class_("RespeakerXVF3800FlashAction", automation.Action)
+
+MuteSwitch = respeaker_xvf3800_ns.class_('MuteSwitch', switch.Switch, cg.PollingComponent)
+DFUVersionTextSensor = respeaker_xvf3800_ns.class_('DFUVersionTextSensor', text_sensor.TextSensor, cg.PollingComponent)
+LEDBeamSensor = respeaker_xvf3800_ns.class_('LEDBeamSensor', sensor.Sensor, cg.PollingComponent)
+
+DFUEndTrigger = respeaker_xvf3800_ns.class_("DFUEndTrigger", automation.Trigger.template())
+DFUErrorTrigger = respeaker_xvf3800_ns.class_("DFUErrorTrigger", automation.Trigger.template())
+DFUProgressTrigger = respeaker_xvf3800_ns.class_(
+    "DFUProgressTrigger", automation.Trigger.template()
+)
+DFUStartTrigger = respeaker_xvf3800_ns.class_("DFUStartTrigger", automation.Trigger.template())
+
+
+def _compute_local_file_path(url: str) -> Path:
+    h = hashlib.new("sha256")
+    h.update(url.encode())
+    key = h.hexdigest()[:8]
+    base_dir = external_files.compute_local_file_dir(DOMAIN)
+    return base_dir / key
+
+
+def download_firmware(config):
+    url = config[CONF_URL]
+    path = _compute_local_file_path(url)
+    external_files.download_content(url, path)
+
+    try:
+        with open(path, "r+b") as f:
+            firmware_bin = f.read()
+    except FileNotFoundError as e:
+        raise cv.Invalid(f"Could not open firmware file {path}: {e}") from e
+
+    firmware_bin_md5 = hashlib.md5(firmware_bin).hexdigest()
+    if firmware_bin_md5 != config[CONF_MD5]:
+        raise cv.Invalid(f"{CONF_MD5} is not consistent with file contents")
+
+    return config
+
+# Define the configuration schema for the component
+CONFIG_SCHEMA = cv.Schema({
+    cv.GenerateID(): cv.declare_id(RespeakerXVF3800),
+    cv.Optional(CONF_MUTE_SWITCH): switch.switch_schema(
+        MuteSwitch,
+        icon="mdi:microphone-off",
+    ).extend(cv.polling_component_schema("1s")),
+    cv.Optional(CONF_DFU_VERSION): text_sensor.text_sensor_schema(
+        DFUVersionTextSensor,
+        icon="mdi:chip",
+    ).extend(cv.polling_component_schema("30s")),
+    cv.Optional(CONF_LED_BEAM_SENSOR): sensor.sensor_schema(
+        LEDBeamSensor,
+        icon="mdi:led-on",
+        accuracy_decimals=0,
+        unit_of_measurement="",
+    ).extend(cv.polling_component_schema("500ms")),
+    cv.Optional(CONF_PROCESSING_TIMEOUT): cv.positive_time_period_seconds,
+    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+    cv.Optional(CONF_FIRMWARE): cv.All(
+                {
+                    cv.Required(CONF_URL): cv.url,
+                    cv.Required(CONF_VERSION): cv.version_number,
+                    cv.Required(CONF_MD5): cv.All(cv.string, cv.Length(min=32, max=32)),
+                    cv.Optional(CONF_ON_BEGIN): automation.validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                DFUStartTrigger
+                            ),
+                        }
+                    ),
+                    cv.Optional(CONF_ON_END): automation.validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                DFUEndTrigger
+                            ),
+                        }
+                    ),
+                    cv.Optional(CONF_ON_ERROR): automation.validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                DFUErrorTrigger
+                            ),
+                        }
+                    ),
+                    cv.Optional(CONF_ON_PROGRESS): automation.validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                DFUProgressTrigger
+                            ),
+                        }
+                    ),
+                },
+                download_firmware,
+            ),
+}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x2C))
+
+
+OTA_RESPEAKER_XVF3800_FLASH_ACTION_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_URL): cv.url,
-        cv.Optional(CONF_VERSION): cv.string,
-        cv.Optional(CONF_MD5): cv.string,
-        cv.Optional(CONF_ON_BEGIN): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    RespeakerXVF3800OnBeginTrigger
-                )
-            }
-        ),
-        cv.Optional(CONF_ON_PROGRESS): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    RespeakerXVF3800OnProgressTrigger
-                )
-            }
-        ),
-        cv.Optional(CONF_ON_END): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    RespeakerXVF3800OnEndTrigger
-                )
-            }
-        ),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    RespeakerXVF3800OnErrorTrigger
-                )
-            }
-        ),
+        cv.GenerateID(): cv.use_id(RespeakerXVF3800),
     }
 )
 
-MUTE_SWITCH_SCHEMA = switch.SWITCH_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(RespeakerXVF3800MuteSwitch),
-        cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-    }
+
+@automation.register_action(
+    "respeaker_xvf3800.flash",
+    RespeakerXVF3800FlashAction,
+    OTA_RESPEAKER_XVF3800_FLASH_ACTION_SCHEMA,
 )
+async def respeaker_xxvf3800_flash_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
 
-DFU_VERSION_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
-    {
-        cv.Optional(CONF_ICON): cv.icon,
-        cv.Optional(CONF_NAME): cv.string,
-        cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-    }
-)
+    return var
 
-LED_BEAM_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend(
-    {
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string,
-        cv.Optional(CONF_ACCURACY_DECIMALS): cv.int_,
-        cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-    }
-)
-
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(RespeakerXVF3800Component),
-            cv.Optional(CONF_PROCESSING_TIMEOUT): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_MUTE_SWITCH): MUTE_SWITCH_SCHEMA,
-            cv.Optional(CONF_DFU_VERSION): DFU_VERSION_SCHEMA,
-            cv.Optional(CONF_LED_BEAM_SENSOR): LED_BEAM_SENSOR_SCHEMA,
-            cv.Optional(CONF_FIRMWARE): FIRMWARE_SCHEMA,
-        }
-    )
-    .extend(i2c.i2c_device_schema(0x2C))
-    .extend(cv.COMPONENT_SCHEMA)
-)
-
-
+# This function is called by ESPHome to generate the C++ code for the component
 async def to_code(config):
+    # Create the main hub component
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-
-    if CONF_PROCESSING_TIMEOUT in config:
-        cg.add(
-            var.set_processing_timeout(config[CONF_PROCESSING_TIMEOUT].total_milliseconds)
-        )
-
+        
+    # Set up mute switch if configured
     if CONF_MUTE_SWITCH in config:
         mute_switch = cg.new_Pvariable(config[CONF_MUTE_SWITCH][CONF_ID])
         await cg.register_component(mute_switch, config[CONF_MUTE_SWITCH])
         await switch.register_switch(mute_switch, config[CONF_MUTE_SWITCH])
-        cg.add(mute_switch.set_parent(var))
         cg.add(var.set_mute_switch(mute_switch))
-
+        cg.add(mute_switch.set_parent(var))
+        
+    # Set up DFU version sensor if configured
     if CONF_DFU_VERSION in config:
-        dfu_version = await text_sensor.new_text_sensor(config[CONF_DFU_VERSION])
-        cg.add(var.set_dfu_version(dfu_version))
+        dfu_sensor = cg.new_Pvariable(config[CONF_DFU_VERSION][CONF_ID])
+        await cg.register_component(dfu_sensor, config[CONF_DFU_VERSION])
+        await text_sensor.register_text_sensor(dfu_sensor, config[CONF_DFU_VERSION])
+        cg.add(var.set_dfu_version_sensor(dfu_sensor))
+        cg.add(dfu_sensor.set_parent(var))
 
+    # Set up LED beam sensor if configured
     if CONF_LED_BEAM_SENSOR in config:
-        led_beam_sensor = await sensor.new_sensor(config[CONF_LED_BEAM_SENSOR])
+        led_beam_sensor = cg.new_Pvariable(config[CONF_LED_BEAM_SENSOR][CONF_ID])
+        await cg.register_component(led_beam_sensor, config[CONF_LED_BEAM_SENSOR])
+        await sensor.register_sensor(led_beam_sensor, config[CONF_LED_BEAM_SENSOR])
         cg.add(var.set_led_beam_sensor(led_beam_sensor))
+        cg.add(led_beam_sensor.set_parent(var))
 
-    firmware = config.get(CONF_FIRMWARE)
-    if firmware:
-        if CONF_ON_BEGIN in firmware:
-            for entry in firmware[CONF_ON_BEGIN]:
-                trigger = cg.new_Pvariable(entry[CONF_TRIGGER_ID])
-                cg.add(var.add_on_begin_trigger(trigger))
-                await automation.build_automation(trigger, [], entry)
+    if CONF_PROCESSING_TIMEOUT in config:
+        cg.add(var.set_processing_timeout(config[CONF_PROCESSING_TIMEOUT].total_milliseconds))
 
-        if CONF_ON_PROGRESS in firmware:
-            for entry in firmware[CONF_ON_PROGRESS]:
-                trigger = cg.new_Pvariable(entry[CONF_TRIGGER_ID])
-                cg.add(var.add_on_progress_trigger(trigger))
-                await automation.build_automation(trigger, [(cg.float_, "x")], entry)
+    if config_fw := config.get(CONF_FIRMWARE):
+        firmware_version = config_fw[CONF_VERSION].split(".")
+        path = _compute_local_file_path(config_fw[CONF_URL])
 
-        if CONF_ON_END in firmware:
-            for entry in firmware[CONF_ON_END]:
-                trigger = cg.new_Pvariable(entry[CONF_TRIGGER_ID])
-                cg.add(var.add_on_end_trigger(trigger))
-                await automation.build_automation(trigger, [], entry)
+        try:
+            with open(path, "r+b") as f:
+                firmware_bin = f.read()
+        except FileNotFoundError as e:
+            raise core.EsphomeError(f"Could not open firmware file {path}: {e}")
 
-        if CONF_ON_ERROR in firmware:
-            for entry in firmware[CONF_ON_ERROR]:
-                trigger = cg.new_Pvariable(entry[CONF_TRIGGER_ID])
-                cg.add(var.add_on_error_trigger(trigger))
-                await automation.build_automation(trigger, [(cg.int_, "x")], entry)
+        # Convert retrieved binary file to an array of ints
+        rhs = [HexInt(x) for x in firmware_bin]
+        # Create an array which will reside in program memory and set the pointer to it
+        firmware_bin_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
+        cg.add(var.set_firmware_bin(firmware_bin_arr, len(rhs)))
+        cg.add(
+            var.set_firmware_version(
+                int(firmware_version[0]),
+                int(firmware_version[1]),
+                int(firmware_version[2]),
+            )
+        )
+
+        use_state_callback = False
+        for conf in config_fw.get(CONF_ON_BEGIN, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+            await automation.build_automation(trigger, [], conf)
+            use_state_callback = True
+        for conf in config_fw.get(CONF_ON_PROGRESS, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+            await automation.build_automation(trigger, [(float, "x")], conf)
+            use_state_callback = True
+        for conf in config_fw.get(CONF_ON_END, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+            await automation.build_automation(trigger, [], conf)
+            use_state_callback = True
+        for conf in config_fw.get(CONF_ON_ERROR, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+            await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
+            use_state_callback = True
+        if use_state_callback:
+            cg.add_define("USE_RESPEAKER_XVF3800_STATE_CALLBACK")
