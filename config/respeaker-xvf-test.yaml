@@ -144,16 +144,16 @@ respeaker_xvf3800:
   # Firmware Update Configuration
   # ============================================
   # This section configures the DFU firmware update process
-  # The firmware binary is included in the ESPHome build
+  # The firmware binary is fetched from a hosted URL
   firmware:
     # URL to the firmware binary
-    # Use "local://" for files in the esphome directory
-    url: "local://application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin"
+    # Host the firmware binary yourself and update this URL.
+    url: "https://example.com/application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin"
     
     # Firmware version (must match binary version)
     version: "1.0.7"
     
-    # MD5 hash of the firmware binary
+    # MD5 hash of the firmware binary (update to match your hosted file)
     # This is used for integrity verification
     # You can compute this with: certutil -hashfile firmware.bin MD5
     # Or in PowerShell: (Get-FileHash firmware.bin -Algorithm MD5).Hash

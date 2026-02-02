@@ -49,12 +49,12 @@ substitutions:
   ui_system_sedentary_timer_haptic_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/SedentaryTimer_Haptic.m4a
   ui_system_time_tick_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/WorkoutCountdown_Haptic.m4a
   ui_system_camera_shutter_burst_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/camera_shutter_burst.m4a
-  external_media_player_entity_id: media_player.media_player
+
 esphome:
   name: respeaker-xvf3800
   friendly_name: reSpeaker XVF3800
   project:
-    name: fitoori.Respeaker XVF3800 Satellite
+    name: formatbce.Respeaker XVF3800 Satellite
     version: 2026.1.2
   min_version: 2026.1.0
   on_boot:
@@ -84,8 +84,7 @@ esphome:
             call.set_option(id(saved_alarm_action));
             call.perform();
         - lambda: |-
-            // Hardcode timezone to Toronto.
-            setenv("TZ", "America/Toronto", 1);
+            setenv("TZ", id(saved_time_zone).c_str(), 1);
             tzset();
 
 esp32:
@@ -121,8 +120,8 @@ wifi:
   min_auth_mode: WPA2
   use_psram: true
   ap:
-    ssid: "reSpeaker_XVF-3800"
-    password: "esphome1234"
+    ssid: "Respeaker-Xvf3800"
+    password: "u5tPvGff6Cl7"
   # Add power management and connection optimizations
   power_save_mode: none  # Disable power saving for better performance
   reboot_timeout: 10min  # Prevent unnecessary reboots
@@ -194,6 +193,33 @@ api:
             id(alarm_time).publish_state(s);
             id(alarm_time_input).publish_state(s);
             id(saved_alarm_time) = s;
+    - action: set_time_zone
+      variables:
+        posix_time_zone: string
+      then:
+        - lambda: |-
+            const std::string tz = posix_time_zone;
+
+            // POSIX TZ strings vary; enforce basic safety only:
+            // - Non-empty
+            // - Reasonable length
+            // - Printable ASCII only (no control chars)
+            if (tz.empty() || tz.size() > 80) {
+              ESP_LOGW("tz", "Rejected TZ (empty/too long)");
+              return;
+            }
+            for (char c : tz) {
+              const unsigned char uc = static_cast<unsigned char>(c);
+              if (uc < 32 || uc > 126) {
+                ESP_LOGW("tz", "Rejected TZ (non-printable chars)");
+                return;
+              }
+            }
+
+            setenv("TZ", tz.c_str(), 1);
+            tzset();
+            id(saved_time_zone) = tz;
+            id(publish_current_time).execute();
   on_client_connected:
     - script.execute: control_leds
   on_client_disconnected:
@@ -270,6 +296,10 @@ globals:
     type: std::string
     restore_value: yes
     initial_value: '"Not set"'
+  - id: saved_time_zone
+    type: std::string
+    restore_value: yes
+    initial_value: '"UTC0"'
   - id: saved_alarm_action
     type: std::string
     restore_value: yes
@@ -331,7 +361,7 @@ switch:
   # Mute Sound Switch.
   - platform: template
     id: mute_sound
-    name: Mute⁄Unmute Sound
+    name: Mute-unmute sound
     icon: "mdi:bullhorn"
     entity_category: config
     optimistic: true
@@ -339,7 +369,7 @@ switch:
   # Wake Word Sound Switch.
   - platform: template
     id: wake_sound
-    name: Wake Sound
+    name: Wake sound
     icon: "mdi:bullhorn"
     entity_category: config
     optimistic: true
@@ -393,7 +423,7 @@ switch:
     restore_mode: RESTORE_DEFAULT_OFF
     id: alarm_on
     icon: mdi:bell-badge
-    name: "Alarm Status"
+    name: "Alarm on"
     on_turn_on:
       - script.execute: control_leds
     on_turn_off:
@@ -416,7 +446,7 @@ number:
 sensor:
   - platform: template
     id: next_timer
-    name: "Next Timer"
+    name: "Next timer"
     update_interval: never
     disabled_by_default: true
     device_class: duration
@@ -427,20 +457,20 @@ sensor:
 text_sensor:
   - platform: template
     id: next_timer_name
-    name: "Next timer Name"
+    name: "Next timer name"
     icon: "mdi:timer"
     disabled_by_default: true
   - platform: template
     id: alarm_time
     internal: true
   - platform: template
-    name: "Current Device Time"
+    name: "Current device time"
     id: current_time
     icon: mdi:clock
 
 text:
   - platform: template
-    name: "Alarm Time"
+    name: "Alarm time"
     id: alarm_time_input
     icon: mdi:bell-ring
     mode: text
@@ -502,7 +532,7 @@ script:
   - id: led_set_effect
     mode: restart
     parameters:
-      effect: string
+      effect: std::string
       r: float
       g: float
       b: float
@@ -987,15 +1017,14 @@ script:
   # Script executed when the device has no connection to Home Assistant
   - id: control_leds_no_ha_connection_state
     then:
-      # Red twinkle disabled pending investigation.
       - script.execute:
           id: led_set_effect
-          effect: "off"
-          r: 0.0
+          effect: "twinkle"
+          r: 255.0
           g: 0.0
           b: 0.0
-          speed: 0.0
-          brightness: 0.0
+          speed: 10.0
+          brightness: 0.4
 
   # Script executed when the voice assistant is waiting for a command (After the wake word)
   - id: control_leds_voice_assistant_waiting_for_command_phase
@@ -1062,15 +1091,14 @@ script:
   # Script executed when the voice assistant is not ready
   - id: control_leds_voice_assistant_not_ready_phase
     then:
-      # Red twinkle disabled pending investigation.
       - script.execute:
           id: led_set_effect
-          effect: "off"
-          r: 0.0
+          effect: "twinkle"
+          r: 255.0
           g: 0.0
           b: 0.0
-          speed: 0.0
-          brightness: 0.0
+          speed: 5.0
+          brightness: 0.8
 
   # Script executed when the volume is changed
   - id: control_leds_volume_changed
@@ -1126,16 +1154,14 @@ script:
       - script.execute:
           id: play_sound
           priority: true
-          sound_file: "timer_finished_sound"
+          sound_file: ${timer_finished_sound_file}
 
   # Script executed when the timer is ringing, to repeat the timer finished sound.
   - id: enable_repeat_one
     then:
-      - homeassistant.service:
-          service: media_player.repeat_set
-          data:
-            entity_id: ${external_media_player_entity_id}
-            repeat: one
+      - media_player.repeat_one:
+          id: external_media_player
+          announcement: true
       # Turn on the repeat mode and pause for 500 ms between playlist items/repeats
       - lambda: |-
             id(external_media_player)->set_playlist_delay_ms(1, 500);
@@ -1144,11 +1170,9 @@ script:
   - id: disable_repeat
     then:
       # Turn off the repeat mode and pause for 0 ms between playlist items/repeats
-      - homeassistant.service:
-          service: media_player.repeat_set
-          data:
-            entity_id: ${external_media_player_entity_id}
-            repeat: "off"
+      - media_player.repeat_off:
+          id: external_media_player
+          announcement: true
       - lambda: |-
             id(external_media_player)->set_playlist_delay_ms(1, 0);
 
@@ -1170,7 +1194,7 @@ script:
           if ( (id(external_media_player).state != media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING ) || priority) {
             id(external_media_player)
               ->make_call()
-              .set_media_url("file://" + sound_file)
+              .set_media_url(sound_file)
               .set_announcement(true)
               .perform();
           }
@@ -1428,6 +1452,46 @@ media_source:
         file: ${factory_reset_confirmed_sound_file}
       - id: error_cloud_expired
         file: ${error_cloud_expired_sound_file}
+      - id: ui_system_tink_sound
+        file: ${ui_system_tink_sound_file}
+      - id: ui_system_tock_sound
+        file: ${ui_system_tock_sound_file}
+      - id: ui_system_navigation_pop_sound
+        file: ${ui_system_navigation_pop_sound_file}
+      - id: ui_system_navigation_push_sound
+        file: ${ui_system_navigation_push_sound_file}
+      - id: ui_system_acknowledgment_received_sound
+        file: ${ui_system_acknowledgment_received_sound_file}
+      - id: ui_system_acknowledgment_sent_sound
+        file: ${ui_system_acknowledgment_sent_sound_file}
+      - id: ui_system_payment_success_sound
+        file: ${ui_system_payment_success_sound_file}
+      - id: ui_system_payment_failure_sound
+        file: ${ui_system_payment_failure_sound_file}
+      - id: ui_system_low_power_alert_sound
+        file: ${ui_system_low_power_alert_sound_file}
+      - id: ui_system_received_message_sound
+        file: ${ui_system_received_message_sound_file}
+      - id: ui_system_sent_message_sound
+        file: ${ui_system_sent_message_sound_file}
+      - id: ui_system_key_press_click_sound
+        file: ${ui_system_key_press_click_sound_file}
+      - id: ui_system_key_press_delete_sound
+        file: ${ui_system_key_press_delete_sound_file}
+      - id: ui_system_focus_change_small_sound
+        file: ${ui_system_focus_change_small_sound_file}
+      - id: ui_system_focus_change_large_sound
+        file: ${ui_system_focus_change_large_sound_file}
+      - id: ui_system_short_double_high_sound
+        file: ${ui_system_short_double_high_sound_file}
+      - id: ui_system_short_double_low_sound
+        file: ${ui_system_short_double_low_sound_file}
+      - id: ui_system_sedentary_timer_haptic_sound
+        file: ${ui_system_sedentary_timer_haptic_sound_file}
+      - id: ui_system_time_tick_sound
+        file: ${ui_system_time_tick_sound_file}
+      - id: ui_system_camera_shutter_burst_sound
+        file: ${ui_system_camera_shutter_burst_sound_file}
 
 media_player:
   - platform: sendspin
@@ -1449,7 +1513,6 @@ media_player:
     volume_min: 0.0
     volume_max: 1.0
     sources:
-      - file_source
       - http_source
       - sendspin_source
     on_mute:
@@ -1494,7 +1557,7 @@ external_components:
       - i2s_audio
   - source:
       type: git
-      url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration
+      url: https://github.com/fitoori/Respeaker-XVF3800-ESPHome-integration
       ref: main
     components:
       - respeaker_xvf3800
@@ -1549,7 +1612,7 @@ respeaker_xvf3800:
   # processing_timeout: 10min
   mute_switch:
     id: mic_mute_switch
-    name: "Mute Microphone"
+    name: "Microphone Mute"
     update_interval: 1s
     on_turn_on:
       - if:
@@ -1561,7 +1624,7 @@ respeaker_xvf3800:
             - script.execute:
                 id: play_sound
                 priority: false
-                sound_file: "mute_switch_on_sound"
+                sound_file: ${mute_switch_on_sound_file}
     on_turn_off:
       - if:
           condition:
@@ -1572,7 +1635,7 @@ respeaker_xvf3800:
             - script.execute:
                 id: play_sound
                 priority: false
-                sound_file: "mute_switch_off_sound"
+                sound_file: ${mute_switch_off_sound_file}
   dfu_version:
     name: "Firmware Version"
     update_interval: 120s
@@ -1581,7 +1644,8 @@ respeaker_xvf3800:
     id: beam_direction
     internal: true
   firmware:
-    url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/refs/heads/main/application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin
+    # Host the firmware binary yourself and update this URL.
+    url: https://example.com/application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin
     version: "1.0.7"
     md5: 043a848f544ff2c7265ac19685daf5de
 
@@ -1650,37 +1714,37 @@ micro_wake_word:
                                   - script.execute:
                                       id: play_sound
                                       priority: true
-                                      sound_file: "wake_word_triggered_sound"
+                                      sound_file: ${wake_word_triggered_sound_file}
                                   - delay: 300ms
                             - voice_assistant.start:
                                 wake_word: !lambda return wake_word;
 
 select:
   - platform: template
-    name: "Wake Word Sensitivity"
+    name: "Wake word sensitivity"
     optimistic: true
-    initial_option: Slight
+    initial_option: Slightly sensitive
     restore_value: true
     entity_category: config
     options:
-      - Slight
-      - Moderate
-      - Extreme
+      - Slightly sensitive
+      - Moderately sensitive
+      - Very sensitive
     on_value:
       # Sets specific wake word probabilities computed for each particular model
       # Note probability cutoffs are set as a quantized uint8 value, each comment has the corresponding floating point cutoff
       # False Accepts per Hour values are tested against all units and channels from the Dinner Party Corpus.
       # These cutoffs apply only to the specific models included in the firmware: okay_nabu@20241226.3, hey_jarvis@v2, hey_mycroft@v2
       lambda: |-
-        if (x == "Slight") {
+        if (x == "Slightly sensitive") {
           id(okay_nabu).set_probability_cutoff(217);    // 0.85 -> 0.000 FAPH on DipCo (Manifest's default)
           id(hey_jarvis).set_probability_cutoff(247);   // 0.97 -> 0.563 FAPH on DipCo (Manifest's default)
           id(hey_mycroft).set_probability_cutoff(253);  // 0.99 -> 0.567 FAPH on DipCo
-        } else if (x == "Moderate") {
+        } else if (x == "Moderately sensitive") {
           id(okay_nabu).set_probability_cutoff(176);    // 0.69 -> 0.376 FAPH on DipCo
           id(hey_jarvis).set_probability_cutoff(235);   // 0.92 -> 0.939 FAPH on DipCo
           id(hey_mycroft).set_probability_cutoff(242);  // 0.95 -> 1.502 FAPH on DipCo (Manifest's default)
-        } else if (x == "Extreme") {
+        } else if (x == "Very sensitive") {
           id(okay_nabu).set_probability_cutoff(143);    // 0.56 -> 0.751 FAPH on DipCo
           id(hey_jarvis).set_probability_cutoff(212);   // 0.83 -> 1.502 FAPH on DipCo
           id(hey_mycroft).set_probability_cutoff(237);  // 0.93 -> 1.878 FAPH on DipCo
@@ -1691,14 +1755,14 @@ select:
     disabled_by_default: true
   - platform: template
     optimistic: true
-    name: "Alarm Action"
+    name: "Alarm action"
     id: alarm_action
     icon: mdi:bell-plus
     options:
-      - "Play Sound"
-      - "Send Event"
-      - "Sound + Event"
-    initial_option: "Play Sound"
+      - "Play sound"
+      - "Send event"
+      - "Sound and event"
+    initial_option: "Play sound"
     on_value:
       then:
         - lambda: |-
@@ -1709,36 +1773,20 @@ select:
     icon: "mdi:play-circle"
     optimistic: true
     restore_value: true
-    initial_option: "Timer Elapsed"
+    initial_option: "Timer finished"
     options:
-      - "Mute"
-      - "Unmute"
-      - "Timer Elapsed"
-      - "Wake Word Triggered"
-      - "Center Button Press"
-      - "Center Button Press x2"
-      - "Center Button Press x3"
-      - "Center Button Long Press"
-      - "Factory Reset INITIATED"
-      - "Factory Reset CANCELLED"
-      - "Factory Reset CONFIRMED"
-      - "Error HA cloud expired"
-  - platform: template
-    name: "Play Light Effect"
-    id: play_light_effect_select
-    icon: "mdi:play-circle"
-    optimistic: true
-    restore_value: true
-    initial_option: "Breathe"
-    options:
-      - "Off"
-      - "Breathe"
-      - "Rainbow"
-      - "Comet CW"
-      - "Comet CCW"
-      - "Twinkle"
-      - "Timer Tick"
-      - "LED Beam"
+      - "Mute switch on"
+      - "Mute switch off"
+      - "Timer finished"
+      - "Wake word triggered"
+      - "Center button press"
+      - "Center button double press"
+      - "Center button triple press"
+      - "Center button long press"
+      - "Factory reset initiated"
+      - "Factory reset cancelled"
+      - "Factory reset confirmed"
+      - "Error cloud expired"
   - platform: template
     name: "LED Ring Color Preset"
     id: user_led_color_preset
@@ -1839,7 +1887,7 @@ voice_assistant:
           - script.execute:
               id: play_sound
               priority: true
-              sound_file: "error_cloud_expired"
+              sound_file: ${error_cloud_expired_sound_file}
   # When the voice assistant starts: Play a wake up sound, duck audio.
   on_start:
     - mixer_speaker.apply_ducking:
@@ -1958,7 +2006,7 @@ button:
     internal: true
   - platform: template
     id: alarm_dismiss_button
-    name: "Dismiss Alarm"
+    name: "Alarm Dismiss"
     icon: "mdi:bell-off"
     on_press:
       - switch.turn_off: timer_ringing
@@ -1985,122 +2033,32 @@ button:
           priority: true
           sound_file: !lambda |-
             auto selection = id(play_sound_select).current_option();
-            if (selection == "Mute") {
-              return std::string("mute_switch_on_sound");
-            } else if (selection == "Unmute") {
-              return std::string("mute_switch_off_sound");
-            } else if (selection == "Timer Elapsed") {
-              return std::string("timer_finished_sound");
-            } else if (selection == "Wake Word Triggered") {
-              return std::string("wake_word_triggered_sound");
-            } else if (selection == "Center Button Press") {
-              return std::string("center_button_press_sound");
-            } else if (selection == "Center Button Press x2") {
-              return std::string("center_button_double_press_sound");
-            } else if (selection == "Center Button Press x3") {
-              return std::string("center_button_triple_press_sound");
-            } else if (selection == "Center Button Long Press") {
-              return std::string("center_button_long_press_sound");
-            } else if (selection == "Factory Reset INITIATED") {
-              return std::string("factory_reset_initiated_sound");
-            } else if (selection == "Factory Reset CANCELLED") {
-              return std::string("factory_reset_cancelled_sound");
-            } else if (selection == "Factory Reset CONFIRMED") {
-              return std::string("factory_reset_confirmed_sound");
-            } else if (selection == "Error HA cloud expired") {
-              return std::string("error_cloud_expired");
-            } else if (selection == "UI system tink") {
-              return std::string("${ui_system_tink_sound_file}");
-            } else if (selection == "UI system tock") {
-              return std::string("${ui_system_tock_sound_file}");
-            } else if (selection == "UI navigation pop") {
-              return std::string("${ui_system_navigation_pop_sound_file}");
-            } else if (selection == "UI navigation push") {
-              return std::string("${ui_system_navigation_push_sound_file}");
-            } else if (selection == "UI acknowledgment received") {
-              return std::string("${ui_system_acknowledgment_received_sound_file}");
-            } else if (selection == "UI acknowledgment sent") {
-              return std::string("${ui_system_acknowledgment_sent_sound_file}");
-            } else if (selection == "UI payment success") {
-              return std::string("${ui_system_payment_success_sound_file}");
-            } else if (selection == "UI payment failure") {
-              return std::string("${ui_system_payment_failure_sound_file}");
-            } else if (selection == "UI low power alert") {
-              return std::string("${ui_system_low_power_alert_sound_file}");
-            } else if (selection == "UI received message") {
-              return std::string("${ui_system_received_message_sound_file}");
-            } else if (selection == "UI sent message") {
-              return std::string("${ui_system_sent_message_sound_file}");
-            } else if (selection == "UI key press click") {
-              return std::string("${ui_system_key_press_click_sound_file}");
-            } else if (selection == "UI key press delete") {
-              return std::string("${ui_system_key_press_delete_sound_file}");
-            } else if (selection == "UI focus change small") {
-              return std::string("${ui_system_focus_change_small_sound_file}");
-            } else if (selection == "UI focus change large") {
-              return std::string("${ui_system_focus_change_large_sound_file}");
-            } else if (selection == "UI short double high") {
-              return std::string("${ui_system_short_double_high_sound_file}");
-            } else if (selection == "UI short double low") {
-              return std::string("${ui_system_short_double_low_sound_file}");
-            } else if (selection == "UI sedentary timer haptic") {
-              return std::string("${ui_system_sedentary_timer_haptic_sound_file}");
-            } else if (selection == "UI time tick") {
-              return std::string("${ui_system_time_tick_sound_file}");
-            } else if (selection == "UI camera shutter burst") {
-              return std::string("${ui_system_camera_shutter_burst_sound_file}");
+            if (selection == "Mute switch on") {
+              return std::string("${mute_switch_on_sound_file}");
+            } else if (selection == "Mute switch off") {
+              return std::string("${mute_switch_off_sound_file}");
+            } else if (selection == "Timer finished") {
+              return std::string("${timer_finished_sound_file}");
+            } else if (selection == "Wake word triggered") {
+              return std::string("${wake_word_triggered_sound_file}");
+            } else if (selection == "Center button press") {
+              return std::string("${center_button_press_sound_file}");
+            } else if (selection == "Center button double press") {
+              return std::string("${center_button_double_press_sound_file}");
+            } else if (selection == "Center button triple press") {
+              return std::string("${center_button_triple_press_sound_file}");
+            } else if (selection == "Center button long press") {
+              return std::string("${center_button_long_press_sound_file}");
+            } else if (selection == "Factory reset initiated") {
+              return std::string("${factory_reset_initiated_sound_file}");
+            } else if (selection == "Factory reset cancelled") {
+              return std::string("${factory_reset_cancelled_sound_file}");
+            } else if (selection == "Factory reset confirmed") {
+              return std::string("${factory_reset_confirmed_sound_file}");
+            } else if (selection == "Error cloud expired") {
+              return std::string("${error_cloud_expired_sound_file}");
             }
             return std::string("${timer_finished_sound_file}");
-  - platform: template
-    id: play_light_effect_button
-    name: "Play Light Effect"
-    icon: "mdi:play"
-    on_press:
-      - lambda: |-
-          auto selection = id(play_light_effect_select).current_option();
-          float r = id(user_led_ring_color_r);
-          float g = id(user_led_ring_color_g);
-          float b = id(user_led_ring_color_b);
-          float speed = 1.0f;
-          float brightness = 0.8f;
-          std::string effect = "breathe";
-
-          if (selection == "Off") {
-            effect = "off";
-            speed = 0.0f;
-            brightness = 0.0f;
-          } else if (selection == "Breathe") {
-            effect = "breathe";
-            speed = 1.0f;
-            brightness = 0.6f;
-          } else if (selection == "Rainbow") {
-            effect = "rainbow";
-            speed = 0.4f;
-            brightness = 0.8f;
-          } else if (selection == "Comet CW") {
-            effect = "comet_cw";
-            speed = 1.0f;
-            brightness = 0.8f;
-          } else if (selection == "Comet CCW") {
-            effect = "comet_ccw";
-            speed = 1.0f;
-            brightness = 0.8f;
-          } else if (selection == "Twinkle") {
-            effect = "twinkle";
-            speed = 6.0f;
-            brightness = 0.8f;
-          } else if (selection == "Timer Tick") {
-            effect = "timer_tick";
-            speed = 1.0f;
-            brightness = 0.7f;
-          } else if (selection == "LED Beam") {
-            effect = "led_beam";
-            speed = 0.0f;
-            brightness = 0.8f;
-            id(animated_beam_position) = id(beam_direction).state;
-          }
-
-          id(led_set_effect).execute(effect, r, g, b, speed, brightness);
   - platform: restart
     id: restart_button
     name: "Restart"
