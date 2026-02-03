@@ -1,0 +1,234 @@
+# ESPHome Test Configuration for ReSpeaker XVF3800
+# This is a minimal test configuration for firmware validation and error testing
+# 
+# IMPORTANT: Update the following before flashing:
+#   1. wifi_ssid and wifi_password in secrets.yaml
+#   2. I2C pins (SDA/SCL) to match your ESP32 board
+#   3. Firmware MD5 hash (see BOOTSTRAP_SETUP.md)
+#   4. OTA password
+#   5. API encryption key
+
+esphome:
+  name: respeaker-xvf3800-test
+  friendly_name: "ReSpeaker XVF3800 Test Device"
+  
+  # Platform and board configuration
+  platform: ESP32
+  board: esp32-s3-devkitc-1
+  
+  # Include custom components from local source
+  includes:
+    - esphome/components/aic3104/
+    - esphome/components/respeaker_xvf3800/
+
+# Networking
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  
+  # Fallback AP for configuration
+  ap:
+    ssid: "ReSpeaker-XVF-Fallback"
+    password: "fallback123"
+
+# Captive portal for easy WiFi setup
+captive_portal:
+
+# OTA Updates
+ota:
+  password: !secret ota_password
+
+# API for Home Assistant integration
+api:
+  encryption:
+    key: !secret api_key
+
+# Logging (set to DEBUG for detailed troubleshooting)
+logger:
+  level: DEBUG
+  logs:
+    respeaker_xvf3800: DEBUG
+    aic3104: DEBUG
+    i2c: DEBUG
+
+# External components (our custom ReSpeaker components)
+external_components:
+  - source: local
+    components:
+      - aic3104
+      - respeaker_xvf3800
+
+# I2C Bus Configuration
+# NOTE: Adjust SDA and SCL pins to match your ESP32 board
+#       ESP32-S3-DevKitC-1: SDA=GPIO9, SCL=GPIO8
+#       Generic ESP32: SDA=GPIO21, SCL=GPIO22
+i2c:
+  sda: GPIO9
+  scl: GPIO8
+  frequency: 100kHz
+  scan: true  # Enable I2C scan for debugging
+
+# Optional: Web server for local control interface
+web_server:
+  port: 80
+
+# Optional: Status indicator LED (if your board has one)
+# light:
+#   - platform: gpio
+#     name: "Status LED"
+#     pin: GPIO2
+#     id: status_led
+
+# Text sensor for debugging
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+    ssid:
+      name: "Connected SSID"
+
+# Sensor for uptime monitoring
+sensor:
+  - platform: uptime
+    name: "Uptime (seconds)"
+    id: uptime_sensor
+
+# ============================================
+# ReSpeaker XVF3800 Component Configuration
+# ============================================
+# This is the main custom component for the ReSpeaker device
+# The XVF3800 is an I2C device at address 0x2C
+respeaker_xvf3800:
+  id: respeaker_device
+  address: 0x2C
+  
+  # Processing timeout for DFU operations (in seconds)
+  processing_timeout: 300
+
+  # ============================================
+  # Mute Switch
+  # ============================================
+  # Optional: GPIO switch to control mute state
+  # This controls GPIO 30 on the XVF3800 device
+  mute_switch:
+    id: xvf_mute_switch
+    name: "ReSpeaker Mute"
+    icon: "mdi:microphone-off"
+    restore_mode: RESTORE_DEFAULT_OFF
+    update_interval: 1s
+
+  # ============================================
+  # DFU Version Sensor
+  # ============================================
+  # Optional: Text sensor showing current firmware version
+  dfu_version:
+    id: xvf_dfu_version
+    name: "ReSpeaker Firmware Version"
+    icon: "mdi:chip"
+    update_interval: 30s
+
+  # ============================================
+  # LED Beam Sensor
+  # ============================================
+  # Optional: Analog sensor for LED beam direction
+  # Indicates which direction the audio is coming from
+  led_beam_sensor:
+    id: xvf_led_beam
+    name: "ReSpeaker LED Beam Direction"
+    icon: "mdi:led-on"
+    unit_of_measurement: ""
+    accuracy_decimals: 0
+    update_interval: 500ms
+
+  # ============================================
+  # Firmware Update Configuration
+  # ============================================
+  # This section configures the DFU firmware update process
+  # The firmware binary is fetched from a hosted URL
+  firmware:
+    # URL to the firmware binary
+    # Host the firmware binary yourself and update this URL.
+    url: "https://example.com/application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin"
+    
+    # Firmware version (must match binary version)
+    version: "1.0.7"
+    
+    # MD5 hash of the firmware binary (update to match your hosted file)
+    # This is used for integrity verification
+    # You can compute this with: certutil -hashfile firmware.bin MD5
+    # Or in PowerShell: (Get-FileHash firmware.bin -Algorithm MD5).Hash
+    md5: "043a848f544ff2c7265ac19685daf5de"
+    
+    # ============================================
+    # Firmware Update Event Handlers
+    # ============================================
+    
+    # on_begin: Triggered when firmware update starts
+    on_begin:
+      - logger.log: "[ReSpeaker] Firmware update started"
+    
+    # on_progress: Triggered with progress percentage
+    # The ${x} variable contains the progress value (0-100)
+    on_progress:
+      - logger.log: format: "[ReSpeaker] Update progress: %.1f%%"
+        args: ["x"]
+    
+    # on_end: Triggered when firmware update completes successfully
+    on_end:
+      - logger.log: "[ReSpeaker] Firmware update completed successfully"
+      - delay: 5s
+      - logger.log: "[ReSpeaker] Device will reboot with new firmware"
+    
+    # on_error: Triggered if firmware update fails
+    # The ${x} variable contains the error code
+    on_error:
+      - logger.log: format: "[ReSpeaker] Firmware update failed with error code: %d"
+        args: ["x"]
+
+# ============================================
+# Automation Examples for Testing
+# ============================================
+
+# Example: Automatically unmute on startup
+automation:
+  - trigger:
+      platform: homeassistant
+      event: start
+    action:
+      - switch.turn_off: xvf_mute_switch
+      - logger.log: "[ReSpeaker] Mute switch initialized"
+
+  # Example: Log LED beam direction every 10 seconds
+  - trigger:
+      platform: interval
+      interval: 10s
+    action:
+      - logger.log: format: "[ReSpeaker] LED Beam: %d"
+        args: ["xvf_led_beam.state"]
+
+# ============================================
+# Debug Information
+# ============================================
+# 
+# To verify the bootstrap was successful:
+#
+# 1. Check Serial Output:
+#    - Should show I2C device found at 0x2C
+#    - Should show "ReSpeaker XVF3800 initialized"
+#
+# 2. Check Web Dashboard:
+#    - Mute switch should respond to toggles
+#    - LED beam sensor should show values
+#    - DFU version should display current firmware
+#
+# 3. Test Firmware Update:
+#    - Ensure device is on reliable WiFi
+#    - Trigger "respeaker_xvf3800.flash" action
+#    - Monitor logs for progress updates
+#    - Verify firmware version changes
+#
+# 4. Check Memory Usage:
+#    - Use logger to dump heap stats
+#    - Should remain < 70% during firmware update
+#
+# For troubleshooting, see BOOTSTRAP_SETUP.md
