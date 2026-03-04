@@ -14,8 +14,8 @@ substitutions:
   voice_assist_not_ready_phase_id: '10'
   # The voice assistant encountered an error
   voice_assist_error_phase_id: '11'
-  # Change this to true in case you ahve a hidden SSID at home.
-  hidden_ssid: "false"
+  # Change this to true in case you have a hidden SSID at home.
+  hidden_ssid: false
   # Substitutions for audio files
   mute_switch_on_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/mute_switch_on.flac
   mute_switch_off_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/mute_switch_off.flac
@@ -29,14 +29,34 @@ substitutions:
   factory_reset_cancelled_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_cancelled.mp3
   factory_reset_confirmed_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_confirmed.mp3
   error_cloud_expired_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/error_cloud_expired.mp3
+  ui_system_tink_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/Tink.m4a
+  ui_system_tock_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/Tock.m4a
+  ui_system_navigation_pop_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/navigation_pop.m4a
+  ui_system_navigation_push_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/navigation_push.m4a
+  ui_system_acknowledgment_received_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/acknowledgment_received.m4a
+  ui_system_acknowledgment_sent_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/acknowledgment_sent.m4a
+  ui_system_payment_success_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/payment_success.m4a
+  ui_system_payment_failure_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/payment_failure.m4a
+  ui_system_low_power_alert_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/low_power.m4a
+  ui_system_received_message_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/ReceivedMessage.m4a
+  ui_system_sent_message_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/SentMessage.m4a
+  ui_system_key_press_click_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/key_press_click.m4a
+  ui_system_key_press_delete_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/key_press_delete.m4a
+  ui_system_focus_change_small_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/focus_change_small.m4a
+  ui_system_focus_change_large_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/focus_change_large.m4a
+  ui_system_short_double_high_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/short_double_high.m4a
+  ui_system_short_double_low_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/short_double_low.m4a
+  ui_system_sedentary_timer_haptic_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/SedentaryTimer_Haptic.m4a
+  ui_system_time_tick_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/WorkoutCountdown_Haptic.m4a
+  ui_system_camera_shutter_burst_sound_file: https://github.com/extratone/iOSSystemSounds/raw/main/m4a/camera_shutter_burst.m4a
 
 esphome:
-  name: respeaker-xvf3800-assistant
-  friendly_name: reSpeaker XVF3800 Assistant
+  name: respeaker-xvf3800
+  friendly_name: reSpeaker XVF3800
   project:
-    name: formatbce.Respeaker XVF3800 Satellite
-    version: 2026.2.1
-  min_version: 2026.2.0
+    name: fitoori.Respeaker XVF3800 Satellite
+    version: 2026.1.2
+  min_version: 2026.1.0
   on_boot:
     - priority: 375
       then:
@@ -45,7 +65,8 @@ esphome:
             state: -1
         # Run the script to refresh the LED status
         - script.execute: control_leds
-        # If after 10 minutes, the device is still initializing (It did not yet connect to Home Assistant), turn off the init_in_progress variable and run the script to refresh the LED status
+        # If after 10 minutes the device is still initializing (it did not connect to Home Assistant),
+        # turn off init_in_progress and refresh the LED status.
         - delay: 10min
         - if:
             condition:
@@ -57,6 +78,8 @@ esphome:
       then:
         - lambda: |-
             id(alarm_time).publish_state(id(saved_alarm_time));
+        - lambda: |-
+            id(alarm_time_input).publish_state(id(saved_alarm_time));
         - lambda: |-
             auto call = id(alarm_action).make_call();
             call.set_option(id(saved_alarm_action));
@@ -78,7 +101,7 @@ esp32:
       CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
       CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: "y"
 
-      # Moves instructions and read only data from flash into PSRAM on boot.
+      # Moves instructions and read-only data from flash into PSRAM on boot.
       # Both enabled allows instructions to execute while a flash operation is in progress without needing to be placed in IRAM.
       # Considerably speeds up mWW at the cost of using more PSRAM.
       CONFIG_SPIRAM_RODATA: "y"
@@ -95,6 +118,11 @@ wifi:
   fast_connect: ${hidden_ssid}
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  min_auth_mode: WPA2
+  use_psram: true
+  ap:
+    ssid: "Respeaker-XVF3800"
+    password: "u5tPvGff6Cl7"
   # Add power management and connection optimizations
   power_save_mode: none  # Disable power saving for better performance
   reboot_timeout: 10min  # Prevent unnecessary reboots
@@ -105,7 +133,8 @@ wifi:
     - script.execute: control_leds
 
 network:
-  enable_ipv6: true
+  enable_ipv6: false
+  enable_high_performance: true
 
 logger:
   level: INFO
@@ -119,6 +148,9 @@ logger:
 
 api:
   id: api_id
+  reboot_timeout: 0s
+  encryption:
+    key: "Kl8t71BBZqz8qS1RWR6wzSrLaTmzEHGtwoKtUJpeJws="
   actions:
     - action: set_led_color
       variables:
@@ -144,20 +176,50 @@ api:
         alarm_time_hh_mm: string
       then:
         - lambda: |-
-            if (alarm_time_hh_mm.length() == 5 &&
-              isdigit(alarm_time_hh_mm[0]) && isdigit(alarm_time_hh_mm[1]) &&
-              isdigit(alarm_time_hh_mm[3]) && isdigit(alarm_time_hh_mm[4])) {
-                id(alarm_time).publish_state(alarm_time_hh_mm);
-                id(saved_alarm_time) = alarm_time_hh_mm;
-              }
+            const std::string s = alarm_time_hh_mm;
+            const auto reject = [&](const char *reason) {
+              ESP_LOGW("alarm", "Rejected alarm time (%s): %s.", reason, s.c_str());
+            };
+
+            if (s.size() != 5 || s[2] != ':') { reject("format"); return; }
+            for (size_t i : {0u, 1u, 3u, 4u}) {
+              if (!isdigit(static_cast<unsigned char>(s[i]))) { reject("non-digit"); return; }
+            }
+
+            const int hh = (s[0] - '0') * 10 + (s[1] - '0');
+            const int mm = (s[3] - '0') * 10 + (s[4] - '0');
+
+            if (hh < 0 || hh > 23 || mm < 0 || mm > 59) { reject("range"); return; }
+
+            id(alarm_time).publish_state(s);
+            id(alarm_time_input).publish_state(s);
+            id(saved_alarm_time) = s;
     - action: set_time_zone
       variables:
         posix_time_zone: string
       then:
         - lambda: |-
-            setenv("TZ", posix_time_zone.c_str(), 1);
+            const std::string tz = posix_time_zone;
+
+            // POSIX TZ strings vary; enforce basic safety only:
+            // - Non-empty
+            // - Reasonable length
+            // - Printable ASCII only (no control chars)
+            if (tz.empty() || tz.size() > 80) {
+              ESP_LOGW("tz", "Rejected TZ: empty or too long.");
+              return;
+            }
+            for (char c : tz) {
+              const unsigned char uc = static_cast<unsigned char>(c);
+              if (uc < 32 || uc > 126) {
+                ESP_LOGW("tz", "Rejected TZ: non-printable characters present.");
+                return;
+              }
+            }
+
+            setenv("TZ", tz.c_str(), 1);
             tzset();
-            id(saved_time_zone) = posix_time_zone;
+            id(saved_time_zone) = tz;
             id(publish_current_time).execute();
   on_client_connected:
     - script.execute: control_leds
@@ -170,20 +232,23 @@ http_request:
 
 ota:
   - platform: esphome
-    id: ota_esphome
-    password: !secret ota_password
+    password: "bdecb5123ed84595432e996ea1fc8b80"
+
+safe_mode:
+  boot_is_good_after: 1min
+  reboot_timeout: 5min
 
 i2c:
   - id: internal_i2c
     sda: GPIO5
     scl: GPIO6
     scan: true
-    frequency: 100kHz
+    frequency: 400kHz
 
 psram:
   mode: octal
   speed: 80MHz
-  ignore_not_found: false  # The VPE has PSRAM, so this is safe. Allows configuring WiFi driver to use more resources (done automatically by the speaker media player)
+  ignore_not_found: false  # The VPE has PSRAM, so this is safe — allows configuring the Wi-Fi driver to use more resources (done automatically by the speaker media player).
 
 globals:
   - id: user_led_ring_color_r
@@ -216,7 +281,7 @@ globals:
     initial_value: '1.0'
   - id: effect_speed
     type: float
-    restore_value: yes
+    restore_value: no
     initial_value: "0.05"   # effects cycle per second (adjust as needed)
   - id: init_in_progress
     type: bool
@@ -235,7 +300,7 @@ globals:
   - id: saved_alarm_time
     type: std::string
     restore_value: yes
-    initial_value: '"Unknown"'
+    initial_value: '"Not set"'
   - id: saved_time_zone
     type: std::string
     restore_value: yes
@@ -252,6 +317,11 @@ globals:
   - id: is_timer_active
     type: bool
     restore_value: no
+  # Global variable storing if the timer ringing switch is on.
+  - id: timer_ringing_state
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   # Global variable storing if a factory reset was requested. If it is set to true, the device will factory reset once the center button is released
   - id: factory_reset_requested
     type: bool
@@ -266,6 +336,10 @@ globals:
     restore_value: no
     initial_value: 'false'
   - id: last_led_update_time
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+  - id: last_led_activity_time
     type: uint32_t
     restore_value: no
     initial_value: '0'
@@ -312,10 +386,11 @@ switch:
     internal: true
     restore_mode: ALWAYS_OFF
     on_turn_off:
+      - lambda: id(timer_ringing_state) = false;
       # Disable stop wake word
       - micro_wake_word.disable_model: stop
       - script.execute: disable_repeat
-      # Stop any current announcement (ie: stop the timer ring mid playback)
+      # Stop any current announcement (i.e., stop the timer ring mid-playback)
       - if:
           condition:
             media_player.is_announcing:
@@ -332,6 +407,7 @@ switch:
       # Refresh the LED ring
       - script.execute: control_leds
     on_turn_on:
+      - lambda: id(timer_ringing_state) = true;
       # Duck audio
       - mixer_speaker.apply_ducking:
           id: media_mixing_input
@@ -353,8 +429,10 @@ switch:
     id: alarm_on
     icon: mdi:bell-badge
     name: "Alarm on"
-
-binary_sensor:
+    on_turn_on:
+      - script.execute: control_leds
+    on_turn_off:
+      - script.execute: control_leds
 
 number:
   - platform: template
@@ -388,13 +466,41 @@ text_sensor:
     icon: "mdi:timer"
     disabled_by_default: true
   - platform: template
-    name: "Alarm time"
     id: alarm_time
-    icon: mdi:bell-ring
+    internal: true
   - platform: template
     name: "Current device time"
     id: current_time
     icon: mdi:clock
+
+text:
+  - platform: template
+    name: "Alarm time"
+    id: alarm_time_input
+    icon: mdi:bell-ring
+    mode: text
+    optimistic: false
+    set_action:
+      - lambda: |-
+          const std::string s = x;
+          const auto reject = [&](const char *reason) {
+            ESP_LOGW("alarm", "Rejected alarm time (%s): %s.", reason, s.c_str());
+            id(alarm_time_input).publish_state(id(saved_alarm_time));
+          };
+
+          if (s.size() != 5 || s[2] != ':') { reject("format"); return; }
+          for (size_t i : {0u, 1u, 3u, 4u}) {
+            if (!isdigit(static_cast<unsigned char>(s[i]))) { reject("non-digit"); return; }
+          }
+
+          const int hh = (s[0] - '0') * 10 + (s[1] - '0');
+          const int mm = (s[3] - '0') * 10 + (s[4] - '0');
+
+          if (hh < 0 || hh > 23 || mm < 0 || mm > 59) { reject("range"); return; }
+
+          id(alarm_time).publish_state(s);
+          id(saved_alarm_time) = s;
+          id(alarm_time_input).publish_state(s);
 
 interval:
   - interval: 50ms
@@ -405,7 +511,7 @@ interval:
             id(update_volume_display_effect).execute();
             return;
           }
-          std::string effect = id(current_led_effect);
+          const std::string effect = id(current_led_effect);
           if (effect == "off") {
             return;
           } else if (effect == "breathe") {
@@ -454,6 +560,7 @@ script:
           } else {
             id(last_led_update_time) = millis(); // Reset timer for smooth animation start
           }
+          id(last_led_activity_time) = millis();
 
   # Individual update scripts for each animated effect
   - id: update_breathe_effect
@@ -463,9 +570,11 @@ script:
           uint32_t now = millis();
           float dt = (now - id(last_led_update_time)) / 1000.0f;
           id(last_led_update_time) = now;
+          if (dt > 0.5f) dt = 0.5f;
 
           phase += dt * id(effect_speed);
-          while (phase >= 1.0f) phase -= 1.0f;
+          phase = fmodf(phase, 1.0f);
+          if (phase < 0.0f) phase += 1.0f;
 
           float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
           float breath_brightness = 0.5f * (1.0f + sinf(phase * 2.0f * M_PI)) * master_brightness;
@@ -486,9 +595,11 @@ script:
           uint32_t now = millis();
           float dt = (now - id(last_led_update_time)) / 1000.0f;
           id(last_led_update_time) = now;
+          if (dt > 0.5f) dt = 0.5f;
 
           hue_offset += dt * id(effect_speed);
-          if (hue_offset >= 1.0f) hue_offset -= 1.0f;
+          hue_offset = fmodf(hue_offset, 1.0f);
+          if (hue_offset < 0.0f) hue_offset += 1.0f;
 
           constexpr int NUM_LEDS = 12;
           constexpr float HUE_STEP = 1.0f / NUM_LEDS;
@@ -512,13 +623,15 @@ script:
           uint32_t now = millis();
           float dt = (now - id(last_led_update_time)) / 1000.0f;
           id(last_led_update_time) = now;
+          if (dt > 0.5f) dt = 0.5f;
 
           constexpr int NUM_LEDS = 12;
           constexpr int BASE_TAIL = 3;
 
           float leds_per_sec = id(effect_speed) * NUM_LEDS;
           comet_pos += dt * leds_per_sec;
-          while (comet_pos >= NUM_LEDS) comet_pos -= NUM_LEDS;
+          comet_pos = fmodf(comet_pos, (float)NUM_LEDS);
+          if (comet_pos < 0.0f) comet_pos += NUM_LEDS;
 
           int head_index = (int)comet_pos;
           int tail_length = BASE_TAIL + (int)(id(effect_speed));
@@ -551,13 +664,15 @@ script:
           uint32_t now = millis();
           float dt = (now - id(last_led_update_time)) / 1000.0f;
           id(last_led_update_time) = now;
+          if (dt > 0.5f) dt = 0.5f;
 
           constexpr int NUM_LEDS = 12;
           constexpr int BASE_TAIL = 3;
 
           float leds_per_sec = id(effect_speed) * NUM_LEDS;
           comet_pos -= dt * leds_per_sec;
-          while (comet_pos < 0.0f) comet_pos += NUM_LEDS;
+          comet_pos = fmodf(comet_pos, (float)NUM_LEDS);
+          if (comet_pos < 0.0f) comet_pos += NUM_LEDS;
 
           int head_index = (int)comet_pos;
           int tail_length = BASE_TAIL + (int)(id(effect_speed));
@@ -593,6 +708,7 @@ script:
           uint32_t now = millis();
           float dt = (now - id(last_led_update_time)) / 1000.0f;
           id(last_led_update_time) = now;
+          if (dt > 0.5f) dt = 0.5f;
 
           // Update existing twinkles
           for (int i = 0; i < NUM_LEDS; i++) {
@@ -683,14 +799,14 @@ script:
               colors[6] = mute_color;
             } else {
               float num_leds_on = volume * NUM_LEDS;
-              float master_brightness = id(user_led_ring_brightness).state;
+              float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
 
               for (int i = 0; i < NUM_LEDS; i++) {
                 float brightness = clamp(num_leds_on - i, 0.0f, 1.0f);
                 if (brightness > 0.0f) {
-                  uint8_t r = (uint8_t)(id(user_led_ring_color_r) * brightness * master_brightness);
-                  uint8_t g = (uint8_t)(id(user_led_ring_color_g) * brightness * master_brightness);
-                  uint8_t b = (uint8_t)(id(user_led_ring_color_b) * brightness * master_brightness);
+                  uint8_t r = (uint8_t)(id(effect_color_r) * brightness * master_brightness);
+                  uint8_t g = (uint8_t)(id(effect_color_g) * brightness * master_brightness);
+                  uint8_t b = (uint8_t)(id(effect_color_b) * brightness * master_brightness);
                   colors[i] = (r << 16) | (g << 8) | b;
                 }
               }
@@ -709,6 +825,7 @@ script:
           uint32_t now = millis();
           float dt = (now - id(last_led_update_time)) / 1000.0f;
           id(last_led_update_time) = now;
+          if (dt > 0.5f) dt = 0.5f;
 
           if (id(beam_direction).has_state()) {
             // CORRECTING THE OFFSET: add 5 from the sensor reading
@@ -762,40 +879,58 @@ script:
           }
           id(respeaker).set_led_ring(colors);
 
-  # Master script controlling the LEDs, based on different conditions : initialization in progress, wifi and api connected and voice assistant phase.
-  # For the sake of simplicity and re-usability, the script calls child scripts defined below.
+  # Master script controlling the LEDs, based on different conditions: initialization in progress, Wi-Fi and API connection state, and voice-assistant phase.
+  # For simplicity and reusability, the script calls child scripts defined below.
   # This script will be called every time one of these conditions is changing.
   - id: control_leds
     mode: single  # Prevent multiple simultaneous executions
     then:
       - lambda: |
+          // Refresh timer state up front so caching is correct.
+          id(check_if_timers_active).execute();
+          if (id(is_timer_active)) {
+            id(fetch_first_active_timer).execute();
+          }
+
           // Cache expensive component checks
           static bool last_respeaker_failed = false;
           static bool last_wifi_connected = false;
           static bool last_api_connected = false;
-          static int last_voice_phase = -1;
+          static int  last_voice_phase = -1;
           static bool last_timer_ringing = false;
           static bool last_timer_active = false;
           static bool last_improv_ble = false;
           static bool last_init_progress = false;
+          static float last_user_r = -1.0f;
+          static float last_user_g = -1.0f;
+          static float last_user_b = -1.0f;
 
-          bool respeaker_failed = id(respeaker).is_failed();
-          bool wifi_connected = id(wifi_id).is_connected();
-          bool api_connected = id(api_id).is_connected();
-          int voice_phase = id(voice_assistant_phase);
-          bool new_timer_ringing = id(timer_ringing).state;
-          bool improv_ble = id(improv_ble_in_progress);
-          bool init_progress = id(init_in_progress);
+          const bool respeaker_failed = id(respeaker).is_failed();
+          const bool wifi_connected = id(wifi_id).is_connected();
+          const bool api_connected = id(api_id).is_connected(true);
+          const int  voice_phase = id(voice_assistant_phase);
+          const bool timer_ringing = id(timer_ringing_state);
+          const bool timer_active = id(is_timer_active);
+          const bool improv_ble = id(improv_ble_in_progress);
+          const bool init_progress = id(init_in_progress);
+
+          const float user_r = id(user_led_ring_color_r);
+          const float user_g = id(user_led_ring_color_g);
+          const float user_b = id(user_led_ring_color_b);
 
           // Only update if something actually changed
-          bool needs_update = (
+          const bool needs_update = (
             respeaker_failed != last_respeaker_failed ||
             wifi_connected != last_wifi_connected ||
             api_connected != last_api_connected ||
             voice_phase != last_voice_phase ||
-            new_timer_ringing != last_timer_ringing ||
+            timer_ringing != last_timer_ringing ||
+            timer_active != last_timer_active ||
             improv_ble != last_improv_ble ||
-            init_progress != last_init_progress
+            init_progress != last_init_progress ||
+            user_r != last_user_r ||
+            user_g != last_user_g ||
+            user_b != last_user_b
           );
 
           if (!needs_update) return;
@@ -805,19 +940,17 @@ script:
           last_wifi_connected = wifi_connected;
           last_api_connected = api_connected;
           last_voice_phase = voice_phase;
-          last_timer_ringing = new_timer_ringing;
+          last_timer_ringing = timer_ringing;
+          last_timer_active = timer_active;
           last_improv_ble = improv_ble;
           last_init_progress = init_progress;
+          last_user_r = user_r;
+          last_user_g = user_g;
+          last_user_b = user_b;
 
           if (respeaker_failed) {
             id(control_leds_respeaker_startup_failed).execute();
             return;
-          }
-
-          // Only check timers if we need to
-          id(check_if_timers_active).execute();
-          if (id(is_timer_active)){
-            id(fetch_first_active_timer).execute();
           }
 
           // Continue with existing logic...
@@ -827,7 +960,7 @@ script:
             id(control_leds_init_state).execute();
           } else if (!wifi_connected || !api_connected){
             id(control_leds_no_ha_connection_state).execute();
-          } else if (new_timer_ringing) {
+          } else if (timer_ringing) {
             id(control_leds_timer_ringing).execute();
           } else if (voice_phase == ${voice_assist_waiting_for_command_phase_id}) {
             id(control_leds_voice_assistant_waiting_for_command_phase).execute();
@@ -841,7 +974,7 @@ script:
             id(control_leds_voice_assistant_error_phase).execute();
           } else if (voice_phase == ${voice_assist_not_ready_phase_id}) {
             id(control_leds_voice_assistant_not_ready_phase).execute();
-          } else if (id(is_timer_active)) {
+          } else if (timer_active) {
             id(control_leds_timer_ticking).execute();
           } else if (voice_phase == ${voice_assist_idle_phase_id}) {
             id(control_leds_voice_assistant_idle_phase).execute();
@@ -908,7 +1041,7 @@ script:
           speed: 10.0
           brightness: 0.4
 
-  # Script executed when the voice assistant is waiting for a command (After the wake word)
+  # Script executed when the voice assistant is waiting for a command (after the wake word)
   - id: control_leds_voice_assistant_waiting_for_command_phase
     then:
       - lambda: |
@@ -934,7 +1067,7 @@ script:
           speed: 0.0
           brightness: 1.0
 
-  # Script executed when the voice assistant is thinking to a command
+  # Script executed when the voice assistant is thinking about a command
   - id: control_leds_voice_assistant_thinking_phase
     then:
       - script.execute:
@@ -988,12 +1121,10 @@ script:
     then:
       - lambda: |-
           id(volume_display_active) = true;
+          id(last_led_activity_time) = millis();
       - delay: 2s
       - lambda: |-
           id(volume_display_active) = false;
-          // Turn off LEDs - any active effect will take over on next interval tick
-          uint32_t colors[12] = {0};
-          id(respeaker).set_led_ring(colors);
 
   # Script executed when the timer is ringing, to control the LEDs
   - id: control_leds_timer_ringing
@@ -1031,14 +1162,14 @@ script:
           speed: 0.0
           brightness: 0.0
 
-  # Script executed when the timer is ringing, to playback sounds.
+  # Script executed when the timer is ringing, to play sounds.
   - id: ring_timer
     then:
       - script.execute: enable_repeat_one
       - script.execute:
           id: play_sound
           priority: true
-          sound_file: "timer_finished_sound"
+          sound_file: ${timer_finished_sound_file}
 
   # Script executed when the timer is ringing, to repeat the timer finished sound.
   - id: enable_repeat_one
@@ -1050,7 +1181,7 @@ script:
       - lambda: |-
             id(external_media_player)->set_playlist_delay_ms(1, 500);
 
-  # Script execute when the timer is done ringing, to disable repeat mode.
+  # Script executed when the timer stops ringing, to disable repeat mode.
   - id: disable_repeat
     then:
       # Turn off the repeat mode and pause for 0 ms between playlist items/repeats
@@ -1075,23 +1206,34 @@ script:
                 id: external_media_player
                 announcement: true
       - lambda: |-
-          if ( (id(external_media_player).state != media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING ) || priority) {
+          if ((id(external_media_player).state != media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING) || priority) {
             id(external_media_player)
               ->make_call()
-              .set_media_url("file://" + sound_file)
+              .set_media_url(sound_file)
               .set_announcement(true)
               .perform();
           }
 
   # Script used to fetch the first active timer (Stored in global first_active_timer)
   - id: fetch_first_active_timer
+    mode: single
     then:
       - lambda: |
-          const auto &timers = id(va).get_timers();
-          auto output_timer = *timers.begin();
-          for (const auto &timer : timers) {
-            if (timer.is_active && timer.seconds_left <= output_timer.seconds_left) {
-              output_timer = timer;
+          static uint32_t last_fetch_time = 0;
+          uint32_t now = millis();
+
+          // Only fetch every 500ms to reduce overhead
+          if (now - last_fetch_time < 500) return;
+          last_fetch_time = now;
+
+          const auto timers = id(va).get_timers();
+          if (timers.empty()) return;
+
+          auto output_timer = timers.begin()->second;
+          for (auto &iterable_timer : timers) {
+            if (iterable_timer.second.is_active &&
+                iterable_timer.second.seconds_left <= output_timer.seconds_left) {
+              output_timer = iterable_timer.second;
             }
           }
           id(first_active_timer) = output_timer;
@@ -1100,18 +1242,20 @@ script:
   - id: check_if_timers_active
     then:
       - lambda: |
-          const auto &timers = id(va).get_timers();
+          const auto timers = id(va).get_timers();
           bool output = false;
-          for (const auto &timer : timers) {
-            if (timer.is_active) {
-              output = true;
+          if (timers.size() > 0) {
+            for (auto &iterable_timer : timers) {
+              if(iterable_timer.second.is_active) {
+                output = true;
+              }
             }
           }
           id(is_timer_active) = output;
 
-  # Script used activate the stop word if the TTS step is long.
+  # Script used to activate the stop word if the TTS step is long.
   # Why is this wrapped on a script?
-  #   Becasue we want to stop the sequence if the TTS step is faster than that.
+  #   Because we want to stop the sequence if the TTS step is faster than that.
   #   This allows us to prevent having the deactivation of the stop word before its own activation.
   - id: activate_stop_word_once
     then:
@@ -1119,52 +1263,70 @@ script:
           condition:
             media_player.is_announcing:
               id: external_media_player
-      - delay: 1s
-      # Enable stop wake word
+          timeout: 2s
       - if:
           condition:
-            switch.is_off: timer_ringing
+            media_player.is_announcing:
+              id: external_media_player
           then:
-            - micro_wake_word.enable_model: stop
-            - wait_until:
-                not:
-                  media_player.is_announcing:
-                    id: external_media_player
+            - delay: 1s
+            # Enable stop wake word
             - if:
                 condition:
                   switch.is_off: timer_ringing
                 then:
-                  - micro_wake_word.disable_model: stop
+                  - micro_wake_word.enable_model: stop
+                  - wait_until:
+                      condition:
+                        not:
+                          media_player.is_announcing:
+                            id: external_media_player
+                      timeout: 30s
+                  - if:
+                      condition:
+                        switch.is_off: timer_ringing
+                      then:
+                        - micro_wake_word.disable_model: stop
 
   - id: check_alarm
     then:
       - lambda: |-
           id(publish_current_time).execute();
-          // Check alarm
-          if (id(alarm_on).state && id(alarm_time).has_state()) {
-            // Get the stored alarm time from the sensor
-            auto set_alarm_time = id(alarm_time).state;
-            if (set_alarm_time.length() == 5 &&
-              isdigit(set_alarm_time[0]) && isdigit(set_alarm_time[1]) &&
-              isdigit(set_alarm_time[3]) && isdigit(set_alarm_time[4])) {
-              auto alarm_hour = std::stoi(set_alarm_time.substr(0, 2));
-              auto alarm_minute = std::stoi(set_alarm_time.substr(3, 2));
 
-              // Trigger action if current time matches alarm time
-              auto time_now = id(homeassistant_time).now();
-              if (time_now.hour == alarm_hour && time_now.minute == alarm_minute) {
-                auto action = id(alarm_action).current_option();
-                if (action == "Play sound") {
-                  id(timer_ringing).turn_on();
-                } else if (action == "Send event") {
-                  id(send_alarm_event).execute();
-                } else if (action == "Sound and event") {
-                  id(timer_ringing).turn_on();
-                  id(send_alarm_event).execute();
-                }
-              }
-            } else {
-              ESP_LOGW("alarm", "Incorrect alarm time setting");
+          if (!id(alarm_on).state) return;
+          if (!id(alarm_time).has_state()) return;
+
+          const std::string s = id(alarm_time).state;
+          if (s.empty() || s == "Not set") return;
+
+          if (s.size() != 5 || s[2] != ':') {
+            ESP_LOGW("alarm", "Stored alarm time invalid (format): %s.", s.c_str());
+            return;
+          }
+          for (size_t i : {0u, 1u, 3u, 4u}) {
+            if (!isdigit(static_cast<unsigned char>(s[i]))) {
+              ESP_LOGW("alarm", "Stored alarm time invalid (non-digit): %s.", s.c_str());
+              return;
+            }
+          }
+
+          const int alarm_hour = (s[0] - '0') * 10 + (s[1] - '0');
+          const int alarm_minute = (s[3] - '0') * 10 + (s[4] - '0');
+          if (alarm_hour > 23 || alarm_minute > 59) {
+            ESP_LOGW("alarm", "Stored alarm time invalid (range): %s.", s.c_str());
+            return;
+          }
+
+          auto time_now = id(homeassistant_time).now();
+          if (time_now.hour == alarm_hour && time_now.minute == alarm_minute) {
+            auto action = id(alarm_action).current_option();
+            if (action == "Play sound") {
+              id(timer_ringing).turn_on();
+            } else if (action == "Send event") {
+              id(send_alarm_event).execute();
+            } else if (action == "Sound and event") {
+              id(timer_ringing).turn_on();
+              id(send_alarm_event).execute();
             }
           }
   - id: send_alarm_event
@@ -1230,7 +1392,7 @@ microphone:
     i2s_din_pin: GPIO43
     adc_type: external
     pdm: false
-    sample_rate: 48000
+    sample_rate: 16000
     bits_per_sample: 32bit
     i2s_mode: secondary
     i2s_audio_id: i2s_input
@@ -1286,19 +1448,6 @@ media_source:
   - platform: http_request
     id: http_source
     buffer_size: 500000
-  - platform: file
-    id: file_source
-    files:
-      - id: mute_switch_on_sound
-        file: ${mute_switch_on_sound_file}
-      - id: mute_switch_off_sound
-        file: ${mute_switch_off_sound_file}
-      - id: timer_finished_sound
-        file: ${timer_finished_sound_file}
-      - id: wake_word_triggered_sound
-        file: ${wake_word_triggered_sound_file}
-      - id: error_cloud_expired
-        file: ${error_cloud_expired_sound_file}
 
 media_player:
   - platform: sendspin
@@ -1320,7 +1469,6 @@ media_player:
     volume_min: 0.0
     volume_max: 1.0
     sources:
-      - file_source
       - http_source
       - sendspin_source
     on_mute:
@@ -1356,6 +1504,7 @@ media_player:
               decibel_reduction: 0
               duration: 1.0s
 
+# Using formatBCE integrations as the backbone for XVF3800 support (keeps firmware and components current).
 external_components:
   - source:
       type: git
@@ -1363,7 +1512,6 @@ external_components:
       ref: respeaker_microphone
     components:
       - i2s_audio
-    refresh: 0s
   - source:
       type: git
       url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration
@@ -1371,42 +1519,54 @@ external_components:
     components:
       - respeaker_xvf3800
       - aic3104
-    refresh: 0s
+  - source:
+      # https://github.com/esphome/esphome/pull/12253
+      type: git
+      url: https://github.com/esphome/esphome
+      ref: 7f34908569650e5a8b8c83e6bf89fea561218880
+    components: [mixer]
+    refresh: never
+  - source:
+      # https://github.com/esphome/esphome/pull/12254
+      type: git
+      url: https://github.com/esphome/esphome
+      ref: 6006b896a691ad38d8045ac67564c168973d1a1d
+    components: [resampler]
+    refresh: never
   - source:
       # https://github.com/esphome/esphome/pull/12256
       type: git
       url: https://github.com/esphome/esphome
-      ref: a2d98e1d5e020200db8f3caf27a74a939a661dc4
+      ref: 9148832ea4e54907bad71a24d4ced1ce6c862433
     components: [audio]
+    refresh: never
   - source:
       # https://github.com/esphome/esphome/pull/12258
       type: git
       url: https://github.com/esphome/esphome
-      ref: b4b7c5b25ebe0f2ab988f700219fa3c57b2377b7
+      ref: bff22983a390352360796f8e1363127e0cd1f898
     components: [media_player]
+    refresh: never
   - source:
       # https://github.com/esphome/esphome/pull/12284
       type: git
       url: https://github.com/esphome/esphome
-      ref: d48058e140c98f5c2d902661d851a6b712d62434
-    components: [sendspin]
-  - source:
-      # https://github.com/esphome/esphome/pull/14013
-      type: git
-      url: https://github.com/esphome/esphome
-      ref: 51dcce3d1f22865ebb458a5447bbc877ac946b5a
-    components: [mdns]
+      ref: a6c0a861a014e64c67d46115eba8e5370777b80a
+    components: [mdns, sendspin]
+    refresh: never
   - source:
       # https://github.com/esphome/esphome/pull/12429
       type: git
       url: https://github.com/esphome/esphome
-      ref: b49b09b6ae56502aa3ce51be86f90d732d019b2c
-    refresh: 0s
+      ref: 928204066ce0082404573ea1c6a0b58aeebbd7c6
     components: [file, http_request, media_source, speaker_source]
+    refresh: never
 
 respeaker_xvf3800:
   id: respeaker
   address: 0x2C
+  # Optional: timeout to abort DFU processing if it stalls (disabled by default).
+  # processing_timeout: 10min
   mute_switch:
     id: mic_mute_switch
     name: "Microphone Mute"
@@ -1421,7 +1581,7 @@ respeaker_xvf3800:
             - script.execute:
                 id: play_sound
                 priority: false
-                sound_file: "mute_switch_on_sound"
+                sound_file: ${mute_switch_on_sound_file}
     on_turn_off:
       - if:
           condition:
@@ -1432,7 +1592,7 @@ respeaker_xvf3800:
             - script.execute:
                 id: play_sound
                 priority: false
-                sound_file: "mute_switch_off_sound"
+                sound_file: ${mute_switch_off_sound_file}
   dfu_version:
     name: "Firmware Version"
     update_interval: 120s
@@ -1455,7 +1615,7 @@ micro_wake_word:
   microphone:
     microphone: i2s_mics
     channels: 1
-    # gain_factor: 4
+    gain_factor: 4
   stop_after_detection: false
   models:
     - model: https://github.com/kahrendt/microWakeWord/releases/download/okay_nabu_20241226.3/okay_nabu.json
@@ -1471,9 +1631,10 @@ micro_wake_word:
       id: stop
       internal: true
   vad:
-    probability_cutoff: 0.05
+    # Increased to reduce accidental/false wake-word detections (was 0.05)
+    probability_cutoff: 0.10
   on_wake_word_detected:
-    # If the wake word is detected when the device is muted (Possible with the software mute switch): Do nothing
+    # If the wake word is detected while the device is muted (possible with the software mute switch), do nothing.
     - if:
         condition:
           switch.is_off: mic_mute_switch
@@ -1510,7 +1671,7 @@ micro_wake_word:
                                   - script.execute:
                                       id: play_sound
                                       priority: true
-                                      sound_file: "wake_word_triggered_sound"
+                                      sound_file: ${wake_word_triggered_sound_file}
                                   - delay: 300ms
                             - voice_assistant.start:
                                 wake_word: !lambda return wake_word;
@@ -1563,6 +1724,46 @@ select:
       then:
         - lambda: |-
             id(saved_alarm_action) = x;
+  - platform: template
+    name: "Play Sound"
+    id: play_sound_select
+    icon: "mdi:play-circle"
+    optimistic: true
+    restore_value: true
+    initial_option: "Timer finished"
+    options:
+      - "Mute switch on"
+      - "Mute switch off"
+      - "Timer finished"
+      - "Wake word triggered"
+      - "Center button press"
+      - "Center button double press"
+      - "Center button triple press"
+      - "Center button long press"
+      - "Factory reset initiated"
+      - "Factory reset cancelled"
+      - "Factory reset confirmed"
+      - "Error cloud expired"
+      - "UI tink"
+      - "UI tock"
+      - "UI navigation pop"
+      - "UI navigation push"
+      - "UI acknowledgment received"
+      - "UI acknowledgment sent"
+      - "UI payment success"
+      - "UI payment failure"
+      - "UI low power"
+      - "UI received message"
+      - "UI sent message"
+      - "UI key press click"
+      - "UI key press delete"
+      - "UI focus change small"
+      - "UI focus change large"
+      - "UI short double high"
+      - "UI short double low"
+      - "UI sedentary timer haptic"
+      - "UI time tick"
+      - "UI camera shutter burst"
   - platform: template
     name: "LED Ring Color Preset"
     id: user_led_color_preset
@@ -1621,7 +1822,7 @@ voice_assistant:
   id: va
   microphone:
     microphone: i2s_mics
-    channels: 0
+    channels: 1
   media_player: external_media_player
   micro_wake_word: mww
   use_wake_word: false
@@ -1663,7 +1864,7 @@ voice_assistant:
           - script.execute:
               id: play_sound
               priority: true
-              sound_file: "error_cloud_expired"
+              sound_file: ${error_cloud_expired_sound_file}
   # When the voice assistant starts: Play a wake up sound, duck audio.
   on_start:
     - mixer_speaker.apply_ducking:
@@ -1682,7 +1883,7 @@ voice_assistant:
   on_intent_progress:
     - if:
         condition:
-          # A nonempty x variable means a streaming TTS url was sent to the media player
+          # A nonempty x variable means a streaming TTS URL was sent to the media player
           lambda: 'return !x.empty();'
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
@@ -1692,7 +1893,7 @@ voice_assistant:
   on_tts_start:
     - if:
         condition:
-          # The intent_progress trigger didn't start the TTS Reponse
+          # The intent_progress trigger did not start the TTS response
           lambda: 'return id(voice_assistant_phase) != ${voice_assist_replying_phase_id};'
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
@@ -1708,11 +1909,13 @@ voice_assistant:
         id: send_stt_text_event
         stt_text: !lambda 'return x;'
 
-  # When the voice assistant ends ...
+  # When the voice assistant ends...
   on_end:
     - wait_until:
-        not:
-          voice_assistant.is_running:
+        condition:
+          not:
+            voice_assistant.is_running:
+        timeout: 5s
     # Stop ducking audio.
     - mixer_speaker.apply_ducking:
         id: media_mixing_input
@@ -1780,6 +1983,101 @@ button:
     name: "Factory Reset"
     entity_category: diagnostic
     internal: true
+  - platform: template
+    id: alarm_dismiss_button
+    name: "Alarm Dismiss"
+    icon: "mdi:bell-off"
+    on_press:
+      - switch.turn_off: timer_ringing
+      - lambda: |-
+          // ESPHome no longer exposes timer cancellation helpers publicly.
+          // We only stop the local ringing state here.
+      - lambda: |
+          id(check_if_timers_active).execute();
+          if (id(is_timer_active)) {
+            id(fetch_first_active_timer).execute();
+            id(next_timer).publish_state(id(first_active_timer).seconds_left);
+            id(next_timer_name).publish_state(id(first_active_timer).name);
+          } else {
+            id(next_timer).publish_state(-1);
+            id(next_timer_name).publish_state("-");
+          }
+  - platform: template
+    id: play_sound_button
+    name: "Play Sound"
+    icon: "mdi:play"
+    on_press:
+      - script.execute:
+          id: play_sound
+          priority: true
+          sound_file: !lambda |-
+            auto selection = id(play_sound_select).current_option();
+            if (selection == "Mute switch on") {
+              return std::string("${mute_switch_on_sound_file}");
+            } else if (selection == "Mute switch off") {
+              return std::string("${mute_switch_off_sound_file}");
+            } else if (selection == "Timer finished") {
+              return std::string("${timer_finished_sound_file}");
+            } else if (selection == "Wake word triggered") {
+              return std::string("${wake_word_triggered_sound_file}");
+            } else if (selection == "Center button press") {
+              return std::string("${center_button_press_sound_file}");
+            } else if (selection == "Center button double press") {
+              return std::string("${center_button_double_press_sound_file}");
+            } else if (selection == "Center button triple press") {
+              return std::string("${center_button_triple_press_sound_file}");
+            } else if (selection == "Center button long press") {
+              return std::string("${center_button_long_press_sound_file}");
+            } else if (selection == "Factory reset initiated") {
+              return std::string("${factory_reset_initiated_sound_file}");
+            } else if (selection == "Factory reset cancelled") {
+              return std::string("${factory_reset_cancelled_sound_file}");
+            } else if (selection == "Factory reset confirmed") {
+              return std::string("${factory_reset_confirmed_sound_file}");
+            } else if (selection == "Error cloud expired") {
+              return std::string("${error_cloud_expired_sound_file}");
+            } else if (selection == "UI tink") {
+              return std::string("${ui_system_tink_sound_file}");
+            } else if (selection == "UI tock") {
+              return std::string("${ui_system_tock_sound_file}");
+            } else if (selection == "UI navigation pop") {
+              return std::string("${ui_system_navigation_pop_sound_file}");
+            } else if (selection == "UI navigation push") {
+              return std::string("${ui_system_navigation_push_sound_file}");
+            } else if (selection == "UI acknowledgment received") {
+              return std::string("${ui_system_acknowledgment_received_sound_file}");
+            } else if (selection == "UI acknowledgment sent") {
+              return std::string("${ui_system_acknowledgment_sent_sound_file}");
+            } else if (selection == "UI payment success") {
+              return std::string("${ui_system_payment_success_sound_file}");
+            } else if (selection == "UI payment failure") {
+              return std::string("${ui_system_payment_failure_sound_file}");
+            } else if (selection == "UI low power") {
+              return std::string("${ui_system_low_power_alert_sound_file}");
+            } else if (selection == "UI received message") {
+              return std::string("${ui_system_received_message_sound_file}");
+            } else if (selection == "UI sent message") {
+              return std::string("${ui_system_sent_message_sound_file}");
+            } else if (selection == "UI key press click") {
+              return std::string("${ui_system_key_press_click_sound_file}");
+            } else if (selection == "UI key press delete") {
+              return std::string("${ui_system_key_press_delete_sound_file}");
+            } else if (selection == "UI focus change small") {
+              return std::string("${ui_system_focus_change_small_sound_file}");
+            } else if (selection == "UI focus change large") {
+              return std::string("${ui_system_focus_change_large_sound_file}");
+            } else if (selection == "UI short double high") {
+              return std::string("${ui_system_short_double_high_sound_file}");
+            } else if (selection == "UI short double low") {
+              return std::string("${ui_system_short_double_low_sound_file}");
+            } else if (selection == "UI sedentary timer haptic") {
+              return std::string("${ui_system_sedentary_timer_haptic_sound_file}");
+            } else if (selection == "UI time tick") {
+              return std::string("${ui_system_time_tick_sound_file}");
+            } else if (selection == "UI camera shutter burst") {
+              return std::string("${ui_system_camera_shutter_burst_sound_file}");
+            }
+            return std::string("${timer_finished_sound_file}");
   - platform: restart
     id: restart_button
     name: "Restart"
