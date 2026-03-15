@@ -1167,6 +1167,14 @@ script:
               ESP_LOGW("alarm", "Incorrect alarm time setting");
             }
           }
+  - id: send_wake_word_event
+    parameters:
+      wake_word: string
+    then:
+      - homeassistant.event:
+          event: esphome.wake_word_detected
+          data:
+            wake_word: !lambda return wake_word;
   - id: send_alarm_event
     then:
       - homeassistant.event:
@@ -1478,6 +1486,9 @@ micro_wake_word:
         condition:
           switch.is_off: mic_mute_switch
         then:
+          - script.execute:
+              id: send_wake_word_event
+              wake_word: !lambda return wake_word;
           # If a timer is ringing: Stop it, do not start the voice assistant (We can stop timer from voice!)
           - if:
               condition:
