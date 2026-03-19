@@ -141,6 +141,7 @@ OTA_RESPEAKER_XVF3800_FLASH_ACTION_SCHEMA = cv.Schema(
     "respeaker_xvf3800.flash",
     RespeakerXVF3800FlashAction,
     OTA_RESPEAKER_XVF3800_FLASH_ACTION_SCHEMA,
+    synchronous=False,
 )
 async def respeaker_xxvf3800_flash_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
