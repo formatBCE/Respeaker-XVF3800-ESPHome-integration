@@ -3,7 +3,7 @@ from pathlib import Path
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, core, external_files
-from esphome.components import i2c, switch, text_sensor, sensor, number, select
+from esphome.components import i2c, switch, text_sensor, sensor
 from esphome.const import (
     CONF_ID, 
     CONF_ON_ERROR,
@@ -17,7 +17,7 @@ from esphome.core import HexInt
 # Dependency declarations
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["switch", "text_sensor", "sensor", "number", "select"]
-CODEOWNERS = ["@formatBCE"]
+CODEOWNERS = ["@Zendonir"]
 
 # Configuration keys
 CONF_MUTE_SWITCH = "mute_switch"
@@ -88,7 +88,6 @@ CONFIG_SCHEMA = cv.Schema({
         LEDBeamSensor,
         icon="mdi:led-on",
         accuracy_decimals=0,
-        unit_of_measurement="",
     ).extend(cv.polling_component_schema("500ms")),
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     cv.Optional(CONF_FIRMWARE): cv.All(

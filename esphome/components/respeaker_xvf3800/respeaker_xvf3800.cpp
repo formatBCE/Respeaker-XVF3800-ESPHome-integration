@@ -136,7 +136,7 @@ void RespeakerXVF3800::start_dfu_update() {
 }
 
 RespeakerXVF3800UpdaterStatus RespeakerXVF3800::dfu_update_send_block_() {
-  i2c::ErrorCode error_code = i2c::NO_ERROR;
+  i2c::ErrorCode error_code = i2c::ERROR_OK;
   uint8_t dfu_dnload_req[MAX_XFER + 6] = {240, 1, 130,  // resid, cmd_id, payload length,
                                           0, 0};        // additional payload length (set below)
                                                         // followed by payload data with null terminator

@@ -5,7 +5,7 @@ from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-CODEOWNERS = ["@formatBCE"]
+CODEOWNERS = ["@Zendonir"]
 DEPENDENCIES = ["i2c"]
 
 aic3104_ns = cg.esphome_ns.namespace("aic3104")
