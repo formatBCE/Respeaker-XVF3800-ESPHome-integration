@@ -428,15 +428,17 @@ bool RespeakerXVF3800::read_azimuth_radians_(float &out_radians) {
       return true;
     }
 
-    if (status != CTRL_WAIT) {
-      ESP_LOGW(TAG, "AEC azimuth read returned status 0x%02X (not WAIT) — giving up", status);
+    if (status != CTRL_WAIT && status != SERVICER_COMMAND_RETRY) {
+      ESP_LOGW(TAG, "AEC azimuth read returned unexpected status 0x%02X — giving up", status);
       return false;
     }
 
     delayMicroseconds(500);
   }
 
-  ESP_LOGW(TAG, "AEC azimuth read kept returning CTRL_WAIT after %u attempts", max_attempts);
+  // Exhausted retries on a retry status. This is normal during silence
+  // (no source to localize → no fresh azimuth), hence DEBUG not WARN.
+  ESP_LOGD(TAG, "AEC azimuth read still busy after %u attempts (no fresh data)", max_attempts);
   return false;
 }
 

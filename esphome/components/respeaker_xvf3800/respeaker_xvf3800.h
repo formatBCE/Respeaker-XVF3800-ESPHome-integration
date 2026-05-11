@@ -57,6 +57,10 @@ enum TransportProtocolReturnCode : uint8_t {
   CTRL_DONE = 0,
   CTRL_WAIT = 1,
   CTRL_INVALID = 3,
+  // Servicer-level retry signal from XMOS sln_voice (CONTROL_SERVICER_COMMAND_RETRY).
+  // Returned when the servicer has no fresh data yet — common during silence on the
+  // AEC azimuth read. Functionally equivalent to CTRL_WAIT for the host.
+  SERVICER_COMMAND_RETRY = 0x40,
 };
 
 enum RespeakerXVF3800UpdaterStatus : uint8_t {
