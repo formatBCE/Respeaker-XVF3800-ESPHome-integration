@@ -406,25 +406,38 @@ bool RespeakerXVF3800::read_azimuth_radians_(float &out_radians) {
 
   uint8_t aec_resp[17];
 
-  i2c::ErrorCode err = this->write_read(aec_req, sizeof(aec_req), aec_resp, sizeof(aec_resp));
-  if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Failed to read AEC azimuth values, error=%d", (int)err);
-    return false;
+  // The XMOS transport protocol can return CTRL_WAIT (1) when the servicer is
+  // busy; the host is expected to retry. The 500 ms LED poll hides this naturally,
+  // but a one-shot read (e.g. from lock_beam) has to retry explicitly.
+  const uint8_t max_attempts = 8;
+  for (uint8_t attempt = 0; attempt < max_attempts; attempt++) {
+    i2c::ErrorCode err = this->write_read(aec_req, sizeof(aec_req), aec_resp, sizeof(aec_resp));
+    if (err != i2c::ERROR_OK) {
+      ESP_LOGW(TAG, "Failed to read AEC azimuth values, error=%d", (int)err);
+      return false;
+    }
+
+    uint8_t status = aec_resp[0];
+    if (status == CTRL_DONE) {
+      // 4 floats follow: beam 1, beam 2, free-running beam, auto-select beam.
+      // We use the auto-select beam (index 3, bytes 13-16) — same as the LED sensor.
+      float radians;
+      memcpy(&radians, &aec_resp[13], sizeof(float));
+      ESP_LOGD(TAG, "AEC azimuth (auto-select beam, raw radians): %f", radians);
+      out_radians = radians;
+      return true;
+    }
+
+    if (status != CTRL_WAIT) {
+      ESP_LOGW(TAG, "AEC azimuth read returned status 0x%02X (not WAIT) — giving up", status);
+      return false;
+    }
+
+    delayMicroseconds(500);
   }
 
-  if (aec_resp[0] != 0) {
-    return false;
-  }
-
-  // 4 floats follow: beam 1, beam 2, free-running beam, auto-select beam.
-  // We use the auto-select beam (index 3, bytes 13-16) — same as the LED sensor.
-  float radians;
-  memcpy(&radians, &aec_resp[13], sizeof(float));
-
-  ESP_LOGD(TAG, "AEC azimuth (auto-select beam, raw radians): %f", radians);
-
-  out_radians = radians;
-  return true;
+  ESP_LOGW(TAG, "AEC azimuth read kept returning CTRL_WAIT after %u attempts", max_attempts);
+  return false;
 }
 
 int RespeakerXVF3800::read_led_beam_direction() {
