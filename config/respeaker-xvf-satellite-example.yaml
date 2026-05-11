@@ -1666,6 +1666,7 @@ voice_assistant:
     - script.execute: control_leds
   on_stt_vad_start:
     - lambda: id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
+    - lambda: id(respeaker).lock_beam();
     - script.execute: control_leds
   on_stt_vad_end:
     - lambda: id(voice_assistant_phase) = ${voice_assist_thinking_phase_id};
@@ -1701,6 +1702,7 @@ voice_assistant:
 
   # When the voice assistant ends ...
   on_end:
+    - lambda: id(respeaker).unlock_beam();
     - wait_until:
         not:
           voice_assistant.is_running:
