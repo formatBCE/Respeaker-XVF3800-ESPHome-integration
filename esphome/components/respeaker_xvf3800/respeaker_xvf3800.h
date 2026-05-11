@@ -43,6 +43,12 @@ const uint8_t GPO_GPO_READ_NUM_BYTES = 5;
 const uint8_t AEC_SERVICER_RESID = 33;
 const uint8_t AEC_AZIMUTH_VALUES_CMD = 75;
 
+// AEC fixed-beam (beam-lock) commands. Verified against Respeaker xvf_host.py.
+// AEC_FIXEDBEAMSONOFF       : (33, 37, 1, rw, int32)   — 0 = off, 1 = on
+// AEC_FIXEDBEAMSAZIMUTH_VAL : (33, 81, 2, rw, radians) — two floats: beam 1, beam 2
+const uint8_t AEC_FIXEDBEAMS_ONOFF_CMD = 37;
+const uint8_t AEC_FIXEDBEAMS_AZIMUTH_CMD = 81;
+
 const uint8_t RESID_LED = 0x0C;
 const uint8_t RESID_DFU_VERSION = 0xFE;
 const uint8_t I2C_COMMAND_READ_BIT = 0x80;
@@ -51,6 +57,10 @@ enum TransportProtocolReturnCode : uint8_t {
   CTRL_DONE = 0,
   CTRL_WAIT = 1,
   CTRL_INVALID = 3,
+  // Servicer-level retry signal from XMOS sln_voice (CONTROL_SERVICER_COMMAND_RETRY).
+  // Returned when the servicer has no fresh data yet — common during silence on the
+  // AEC azimuth read. Functionally equivalent to CTRL_WAIT for the host.
+  SERVICER_COMMAND_RETRY = 0x40,
 };
 
 enum RespeakerXVF3800UpdaterStatus : uint8_t {
@@ -228,6 +238,11 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   // Read LED beam direction (0-11)
   int read_led_beam_direction();
 
+  // Beam lock: pin the AEC beam to the current azimuth for the duration of an utterance,
+  // then release it. Intended to be called from voice_assistant lambdas.
+  void lock_beam();
+  void unlock_beam();
+
   // Setters for child components
   void set_mute_switch(MuteSwitch *mute_switch) { mute_switch_ = mute_switch; }
   void set_dfu_version_sensor(DFUVersionTextSensor *dfu_version_sensor) { dfu_version_sensor_ = dfu_version_sensor; }
@@ -285,6 +300,10 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   
   // Helper method for XMOS communication
   void xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *value, uint8_t write_byte_num);
+
+  // Reads the current AEC azimuth in radians (auto-select beam). Returns true on success.
+  // Shared by read_led_beam_direction() and lock_beam().
+  bool read_azimuth_radians_(float &out_radians);
 };
 
 }  // namespace respeaker_xvf3800

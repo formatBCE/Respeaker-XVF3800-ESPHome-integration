@@ -399,48 +399,94 @@ void RespeakerXVF3800::write_mute_status(bool value) {
   }
 }
 
-int RespeakerXVF3800::read_led_beam_direction() {
-  const uint8_t aec_req[] = {AEC_SERVICER_RESID, 
-                             AEC_AZIMUTH_VALUES_CMD | 0x80, 
-                             17};  // 16 bytes + 1 status byte
+bool RespeakerXVF3800::read_azimuth_radians_(float &out_radians) {
+  const uint8_t aec_req[] = {AEC_SERVICER_RESID,
+                             AEC_AZIMUTH_VALUES_CMD | 0x80,
+                             17};  // 16 bytes (4 floats) + 1 status byte
 
   uint8_t aec_resp[17];
-  
-  i2c::ErrorCode err = this->write_read(aec_req, sizeof(aec_req), aec_resp, sizeof(aec_resp));
-  if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Failed to read AEC azimuth values, error=%d", (int)err);
+
+  // The XMOS transport protocol can return CTRL_WAIT (1) when the servicer is
+  // busy; the host is expected to retry. The 500 ms LED poll hides this naturally,
+  // but a one-shot read (e.g. from lock_beam) has to retry explicitly.
+  const uint8_t max_attempts = 8;
+  for (uint8_t attempt = 0; attempt < max_attempts; attempt++) {
+    i2c::ErrorCode err = this->write_read(aec_req, sizeof(aec_req), aec_resp, sizeof(aec_resp));
+    if (err != i2c::ERROR_OK) {
+      ESP_LOGW(TAG, "Failed to read AEC azimuth values, error=%d", (int)err);
+      return false;
+    }
+
+    uint8_t status = aec_resp[0];
+    if (status == CTRL_DONE) {
+      // 4 floats follow: beam 1, beam 2, free-running beam, auto-select beam.
+      // We use the auto-select beam (index 3, bytes 13-16) — same as the LED sensor.
+      float radians;
+      memcpy(&radians, &aec_resp[13], sizeof(float));
+      ESP_LOGD(TAG, "AEC azimuth (auto-select beam, raw radians): %f", radians);
+      out_radians = radians;
+      return true;
+    }
+
+    if (status != CTRL_WAIT && status != SERVICER_COMMAND_RETRY) {
+      ESP_LOGW(TAG, "AEC azimuth read returned unexpected status 0x%02X — giving up", status);
+      return false;
+    }
+
+    delayMicroseconds(500);
+  }
+
+  // Exhausted retries on a retry status. This is normal during silence
+  // (no source to localize → no fresh azimuth), hence DEBUG not WARN.
+  ESP_LOGD(TAG, "AEC azimuth read still busy after %u attempts (no fresh data)", max_attempts);
+  return false;
+}
+
+int RespeakerXVF3800::read_led_beam_direction() {
+  float radians;
+  if (!this->read_azimuth_radians_(radians)) {
     return -1;
   }
-  
-  uint8_t status = aec_resp[0];
-  if (status != 0) {
-    //ESP_LOGW(TAG, "AEC azimuth read returned error status: %02X", status);
-    return -1;
-  }
-  
-  // Extract the fourth float (bytes 13-16)
-  float fourth_float;
-  memcpy(&fourth_float, &aec_resp[13], sizeof(float));
-  
-  ESP_LOGD(TAG, "AEC fourth float (raw): %f", fourth_float);
-  
-  // Convert from radians to degrees
-  float degrees = fourth_float * 180.0f / M_PI;
-  
-  // Map degrees to LED index (0-11)
-  // Each LED covers 30 degrees (360/12 = 30)
-  // LED 0 is at 0 degrees, LED 1 at 30 degrees, etc.
-  int led_index = (int)round(degrees / 30.0f);
-  
-  // Handle wrap-around and ensure valid range
+
+  float degrees = radians * 180.0f / M_PI;
+
+  // Map degrees to LED index (0-11). Each LED covers 30 degrees.
+  int led_index = (int)roundf(degrees / 30.0f);
   if (led_index < 0) {
     led_index += 12;
   }
   led_index = led_index % 12;
-  
+
   ESP_LOGD(TAG, "AEC azimuth: %.1f degrees -> LED %d", degrees, led_index);
-  
+
   return led_index;
+}
+
+void RespeakerXVF3800::lock_beam() {
+  float radians;
+  if (!this->read_azimuth_radians_(radians)) {
+    ESP_LOGW(TAG, "lock_beam: failed to read current azimuth; not locking");
+    return;
+  }
+
+  // AEC_FIXEDBEAMSAZIMUTH_VALUES is 2 floats (radians): fixed beam 1, fixed beam 2.
+  // We point both at the same direction so whichever beam is gated picks up the source.
+  uint8_t payload[2 * sizeof(float)];
+  memcpy(&payload[0], &radians, sizeof(float));
+  memcpy(&payload[sizeof(float)], &radians, sizeof(float));
+  this->xmos_write_bytes(AEC_SERVICER_RESID, AEC_FIXEDBEAMS_AZIMUTH_CMD, payload, sizeof(payload));
+
+  // AEC_FIXEDBEAMSONOFF is int32 (little-endian on XS3).
+  uint8_t on[4] = {0x01, 0x00, 0x00, 0x00};
+  this->xmos_write_bytes(AEC_SERVICER_RESID, AEC_FIXEDBEAMS_ONOFF_CMD, on, sizeof(on));
+
+  ESP_LOGI(TAG, "Beam locked at %.3f rad (%.1f deg)", radians, radians * 180.0f / (float)M_PI);
+}
+
+void RespeakerXVF3800::unlock_beam() {
+  uint8_t off[4] = {0x00, 0x00, 0x00, 0x00};
+  this->xmos_write_bytes(AEC_SERVICER_RESID, AEC_FIXEDBEAMS_ONOFF_CMD, off, sizeof(off));
+  ESP_LOGI(TAG, "Beam lock released");
 }
 
 void RespeakerXVF3800::xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *value, uint8_t write_byte_num) {
