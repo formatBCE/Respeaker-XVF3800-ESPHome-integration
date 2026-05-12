@@ -399,7 +399,12 @@ void RespeakerXVF3800::write_mute_status(bool value) {
   }
 }
 
-bool RespeakerXVF3800::read_azimuth_radians_(float &out_radians) {
+bool RespeakerXVF3800::read_azimuth_radians_(float &out_radians, uint8_t beam_index) {
+  if (beam_index > 3) {
+    ESP_LOGW(TAG, "read_azimuth_radians_: invalid beam index %u", beam_index);
+    return false;
+  }
+
   const uint8_t aec_req[] = {AEC_SERVICER_RESID,
                              AEC_AZIMUTH_VALUES_CMD | 0x80,
                              17};  // 16 bytes (4 floats) + 1 status byte
@@ -419,11 +424,11 @@ bool RespeakerXVF3800::read_azimuth_radians_(float &out_radians) {
 
     uint8_t status = aec_resp[0];
     if (status == CTRL_DONE) {
-      // 4 floats follow: beam 1, beam 2, free-running beam, auto-select beam.
-      // We use the auto-select beam (index 3, bytes 13-16) — same as the LED sensor.
+      // 4 floats follow at bytes [1..16]: beam 1, beam 2, free-running, auto-select.
+      const uint8_t offset = 1 + beam_index * sizeof(float);
       float radians;
-      memcpy(&radians, &aec_resp[13], sizeof(float));
-      ESP_LOGD(TAG, "AEC azimuth (auto-select beam, raw radians): %f", radians);
+      memcpy(&radians, &aec_resp[offset], sizeof(float));
+      ESP_LOGD(TAG, "AEC azimuth (beam %u, raw radians): %f", beam_index, radians);
       out_radians = radians;
       return true;
     }
@@ -444,7 +449,10 @@ bool RespeakerXVF3800::read_azimuth_radians_(float &out_radians) {
 
 int RespeakerXVF3800::read_led_beam_direction() {
   float radians;
-  if (!this->read_azimuth_radians_(radians)) {
+  // When locked, read beam 1 (the pinned fixed beam) straight from the chip;
+  // otherwise read the auto-select beam (the adaptive default).
+  const uint8_t beam_index = this->beam_locked_ ? 0 : 3;
+  if (!this->read_azimuth_radians_(radians, beam_index)) {
     return -1;
   }
 
@@ -480,12 +488,15 @@ void RespeakerXVF3800::lock_beam() {
   uint8_t on[4] = {0x01, 0x00, 0x00, 0x00};
   this->xmos_write_bytes(AEC_SERVICER_RESID, AEC_FIXEDBEAMS_ONOFF_CMD, on, sizeof(on));
 
+  this->beam_locked_ = true;
+
   ESP_LOGI(TAG, "Beam locked at %.3f rad (%.1f deg)", radians, radians * 180.0f / (float)M_PI);
 }
 
 void RespeakerXVF3800::unlock_beam() {
   uint8_t off[4] = {0x00, 0x00, 0x00, 0x00};
   this->xmos_write_bytes(AEC_SERVICER_RESID, AEC_FIXEDBEAMS_ONOFF_CMD, off, sizeof(off));
+  this->beam_locked_ = false;
   ESP_LOGI(TAG, "Beam lock released");
 }
 

@@ -297,13 +297,22 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   MuteSwitch *mute_switch_{nullptr};
   DFUVersionTextSensor *dfu_version_sensor_{nullptr};
   LEDBeamSensor *led_beam_sensor_{nullptr};
+
+  // Beam-lock state. While true, read_led_beam_direction() reads beam-1 (the
+  // pinned fixed beam) from the chip instead of the auto-select beam, so the
+  // LED ring stays pointed at the captured wake-word direction.
+  bool beam_locked_{false};
   
   // Helper method for XMOS communication
   void xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *value, uint8_t write_byte_num);
 
-  // Reads the current AEC azimuth in radians (auto-select beam). Returns true on success.
-  // Shared by read_led_beam_direction() and lock_beam().
-  bool read_azimuth_radians_(float &out_radians);
+  // Reads one of the four AEC azimuth slots (radians) returned by cmd 75:
+  //   0 = beam 1 (fixed beam 1 when fixed mode is on)
+  //   1 = beam 2 (fixed beam 2 when fixed mode is on)
+  //   2 = free-running beam
+  //   3 = auto-select beam (default — what the adaptive LED follows)
+  // Returns true on success. Shared by read_led_beam_direction() and lock_beam().
+  bool read_azimuth_radians_(float &out_radians, uint8_t beam_index = 3);
 };
 
 }  // namespace respeaker_xvf3800
