@@ -35,8 +35,8 @@ esphome:
   friendly_name: reSpeaker XVF3800 Assistant
   project:
     name: formatbce.Respeaker XVF3800 Satellite
-    version: 2026.2.4
-  min_version: 2026.2.0
+    version: 2026.5.0
+  min_version: 2026.5.0
   on_boot:
     - priority: 375
       then:
@@ -56,8 +56,6 @@ esphome:
     - priority: -100
       then:
         - lambda: |-
-            id(alarm_time).publish_state(id(saved_alarm_time));
-        - lambda: |-
             auto call = id(alarm_action).make_call();
             call.set_option(id(saved_alarm_action));
             call.perform();
@@ -72,7 +70,9 @@ esp32:
   flash_size: 8MB
   framework:
     type: esp-idf
-    version: 5.5.1
+    version: recommended
+    components:
+      - espressif/esp-nn==1.1.2 # TODO remove this when MWW stops failing
     sdkconfig_options:
       CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
       CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
@@ -95,11 +95,6 @@ wifi:
   fast_connect: ${hidden_ssid}
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  
-  manual_ip:
-    static_ip: 192.168.1.29  # Replace with actual IP from router
-    gateway: 192.168.1.1       # Usually your router IP
-    subnet:  255.255.255.0
   # Add power management and connection optimizations
   power_save_mode: none  # Disable power saving for better performance
   reboot_timeout: 10min  # Prevent unnecessary reboots
@@ -113,15 +108,14 @@ network:
   enable_ipv6: true
 
 logger:
-  level: DEBUG
-  initial_level: DEBUG
+  level: INFO
+  initial_level: INFO
   logs:
     sensor: WARN
-    voice_assistant: DEBUG
-    micro_wake_word: DEBUG
-    i2s_audio: DEBUG
-    respeaker_xvf3800: DEBUG
-    media_player: DEBUG
+    voice_assistant: INFO
+    micro_wake_word: INFO
+    i2s_audio: WARN
+    respeaker_xvf3800: INFO
 
 api:
   id: api_id
@@ -145,17 +139,6 @@ api:
     - action: stop_va
       then:
         - voice_assistant.stop
-    - action: set_alarm_time
-      variables:
-        alarm_time_hh_mm: string
-      then:
-        - lambda: |-
-            if (alarm_time_hh_mm.length() == 5 &&
-              isdigit(alarm_time_hh_mm[0]) && isdigit(alarm_time_hh_mm[1]) &&
-              isdigit(alarm_time_hh_mm[3]) && isdigit(alarm_time_hh_mm[4])) {
-                id(alarm_time).publish_state(alarm_time_hh_mm);
-                id(saved_alarm_time) = alarm_time_hh_mm;
-              }
     - action: set_time_zone
       variables:
         posix_time_zone: string
@@ -170,10 +153,6 @@ api:
   on_client_disconnected:
     - script.execute: control_leds
 
-http_request:
-# Uncomment this, if you have problems with text-to-speech because of Home Assistant HTTPS internal URL
-#   verify_ssl: false
-
 ota:
   - platform: esphome
     id: ota_esphome
@@ -184,7 +163,7 @@ i2c:
     sda: GPIO5
     scl: GPIO6
     scan: true
-    frequency: 400kHz
+    frequency: 100kHz
 
 psram:
   mode: octal
@@ -238,10 +217,6 @@ globals:
     type: int
     restore_value: no
     initial_value: ${voice_assist_not_ready_phase_id}
-  - id: saved_alarm_time
-    type: std::string
-    restore_value: yes
-    initial_value: '"Unknown"'
   - id: saved_time_zone
     type: std::string
     restore_value: yes
@@ -280,19 +255,6 @@ globals:
     type: float
     restore_value: no
     initial_value: '0.0'
-  
-  - id: is_tts_playing
-    type:  bool
-    restore_value: no
-    initial_value: 'false'
-  - id: tts_guard_active
-    type: bool
-    restore_value: no
-    initial_value: 'false'
-  - id: is_any_audio_playing
-    type:  bool
-    restore_value: no
-    initial_value: 'false'
 
 # Time sync from Home Assistant
 time:
@@ -301,17 +263,31 @@ time:
     on_time:
       # Every 1 minute
       - seconds: 0
-        minutes: /1
         then:
           - script.execute: check_alarm
     on_time_sync:
       - script.execute: publish_current_time
 
+datetime:
+  # schedule the alarm time from Home Assistant
+  - platform: template
+    icon: mdi:bell-ring
+    name: "Alarm time"
+    id: alarm_time
+    type: time
+    initial_value: "00:00:00"
+    restore_value: true
+    optimistic: true
+    internal: false
+    set_action:
+      then:
+        - switch.turn_on: alarm_on
+
 switch:
   # Mute Sound Switch.
   - platform: template
     id: mute_sound
-    name: Mute/unmute sound
+    name: Mute-unmute sound
     icon: "mdi:bullhorn"
     entity_category: config
     optimistic: true
@@ -324,6 +300,16 @@ switch:
     entity_category: config
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
+  # Beam Lock. When on, the XVF3800 beam is pinned to the wake-word direction
+  # for the duration of command capture (released on STT VAD end). Off by default
+  # because fixed-beam mode is a behavioural change worth opting into deliberately.
+  - platform: template
+    id: beam_lock_enabled
+    name: Beam lock
+    icon: "mdi:target-account"
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
   # Internal switch to track when a timer is ringing on the device.
   - platform: template
     id: timer_ringing
@@ -334,7 +320,7 @@ switch:
       # Disable stop wake word
       - micro_wake_word.disable_model: stop
       - script.execute: disable_repeat
-      # Stop any current annoucement (ie: stop the timer ring mid playback)
+      # Stop any current announcement (ie: stop the timer ring mid playback)
       - if:
           condition:
             media_player.is_announcing:
@@ -365,170 +351,15 @@ switch:
       # If 15 minutes have passed and the timer is still ringing, stop it.
       - delay: 15min
       - switch.turn_off: timer_ringing
-  
+  # Defines if alarm is active
   - platform: template
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
     id: alarm_on
     icon: mdi:bell-badge
     name: "Alarm on"
-    on_turn_on:
-      - script.execute: control_leds
-    on_turn_off:
-      - script.execute: control_leds
-  
-  - platform: template
-    name: "Amplifier Enable"
-    id: amplifier_enable
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-    internal: false
-    turn_on_action:
-      then: 
-        - lambda: |-
-            uint8_t payload[] = {20, 1, 2, 31, 0};
-            id(respeaker).write(payload, sizeof(payload));
-            ESP_LOGI("amplifier", "Amplifier ENABLED");
-    turn_off_action: 
-      then:
-        - lambda: |-
-            uint8_t payload[] = {20, 1, 2, 31, 1};
-            id(respeaker).write(payload, sizeof(payload));
-            ESP_LOGI("amplifier", "Amplifier DISABLED (no hum)");  
 
-  # ── XVF3800 DSP Switches ──
-  - platform: template
-    id: fixed_beams_enabled
-    name: "Fixed Beams"
-    icon: mdi:target
-    entity_category: config
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-    turn_on_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_fixed_beams_enabled(true);
-    turn_off_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_fixed_beams_enabled(false);
-  - platform: template
-    id: fixed_beam_gating
-    name: "Fixed Beam Gating"
-    icon: mdi:gate
-    entity_category: config
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    turn_on_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_fixed_beam_gating(true);
-    turn_off_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_fixed_beam_gating(false);
-  - platform: template
-    id: asr_output_switch
-    name: "ASR Output"
-    icon: mdi:account-voice
-    entity_category: config
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-    turn_on_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_asr_output(true);
-    turn_off_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_asr_output(false);
-  - platform: template
-    id: agc_switch
-    name: "AGC"
-    icon: mdi:knob
-    entity_category: config
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    turn_on_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_agc_enabled(true);
-    turn_off_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_agc_enabled(false);
-  - platform: template
-    id: pp_limiter_switch
-    name: "Output Limiter"
-    icon: mdi:volume-high
-    entity_category: config
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    turn_on_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_pp_limiter(true);
-    turn_off_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_pp_limiter(false);
-  - platform: template
-    id: echo_suppression_switch
-    name: "Echo Suppression"
-    icon: mdi:echo-off
-    entity_category: config
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    turn_on_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_echo_suppression(true);
-    turn_off_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_echo_suppression(false);
-  - platform: template
-    id: nl_attenuation_switch
-    name: "NL Echo Attenuation"
-    icon: mdi:volume-minus
-    entity_category: config
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    turn_on_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_nl_attenuation(true);
-    turn_off_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_nl_attenuation(false);
-  - platform: template
-    id: attns_mode_switch
-    name: "Non-Speech Attenuation"
-    icon: mdi:account-off
-    entity_category: config
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
-    turn_on_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_attns_mode(true);
-    turn_off_action:
-      then:
-        - lambda: |-
-            id(respeaker).set_attns_mode(false);
-
-    
 binary_sensor:
-  - platform: template
-    name: "Satellite Actually Responding"
-    id: satellite_responding
-    device_class: sound
-
-  - platform: template
-    name: "Satellite Active"
-    id:  satellite_active
-    device_class: running
 
 number:
   - platform: template
@@ -543,284 +374,6 @@ number:
     step: 0.05
     initial_value: 0.8
     mode: slider
-  - platform: template
-    id: interference_rejection_angle
-    name: "Interference Rejection Angle"
-    icon: mdi:angle-acute
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0
-    max_value: 360
-    step: 15
-    initial_value: 180
-    mode: slider
-    unit_of_measurement: "°"
-    internal: true  # Deprecated — replaced by Fixed Beam controls below
-  # ── Fixed Beam Angle Controls ──
-  - platform: template
-    id: fixed_beam1_angle
-    name: "Fixed Beam 1 Angle"
-    icon: mdi:navigation
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0
-    max_value: 360
-    step: 5
-    initial_value: 0
-    mode: slider
-    unit_of_measurement: "°"
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_fixed_beam_azimuths(x, id(fixed_beam2_angle).state);
-  - platform: template
-    id: fixed_beam2_angle
-    name: "Fixed Beam 2 Angle"
-    icon: mdi:navigation
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0
-    max_value: 360
-    step: 5
-    initial_value: 180
-    mode: slider
-    unit_of_measurement: "°"
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_fixed_beam_azimuths(id(fixed_beam1_angle).state, x);
-  - platform: template
-    id: fixed_beam_noise_threshold
-    name: "Fixed Beam Noise Threshold"
-    icon: mdi:tune
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 1.0
-    step: 0.05
-    initial_value: 0.5
-    mode: slider
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_fixed_beam_noise_threshold(x, x);
-  # ── AEC / ASR Tuning ──
-  - platform: template
-    id: asr_output_gain
-    name: "ASR Output Gain"
-    icon: mdi:amplifier
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 100.0
-    step: 0.5
-    initial_value: 1.0
-    mode: box
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_asr_output_gain(x);
-  - platform: template
-    id: mic_gain
-    name: "Mic Gain"
-    icon: mdi:microphone
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 200.0
-    step: 1.0
-    initial_value: 90.0
-    mode: box
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_mic_gain(x);
-  - platform: template
-    id: ref_gain
-    name: "Reference Gain"
-    icon: mdi:tune-vertical
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 200.0
-    step: 0.5
-    initial_value: 8.0
-    mode: box
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_ref_gain(x);
-  - platform: template
-    id: sys_delay
-    name: "System Delay"
-    icon: mdi:timer-sand
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0
-    max_value: 100
-    step: 1
-    initial_value: 12
-    mode: box
-    unit_of_measurement: "samples"
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_sys_delay((int32_t)x);
-  # ── Post-Processing / AGC ──
-  - platform: template
-    id: agc_max_gain
-    name: "AGC Max Gain"
-    icon: mdi:gain
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 1.0
-    max_value: 1000.0
-    step: 1.0
-    initial_value: 64.0
-    mode: box
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_agc_max_gain(x);
-  - platform: template
-    id: agc_desired_level
-    name: "AGC Desired Level"
-    icon: mdi:volume-equal
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 1.0
-    step: 0.01
-    initial_value: 0.1
-    mode: slider
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_agc_desired_level(x);
-  - platform: template
-    id: pp_limiter_power
-    name: "Limiter Power"
-    icon: mdi:volume-minus
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 1.0
-    step: 0.01
-    initial_value: 0.5
-    mode: slider
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_pp_limiter_level(x);
-  # ── Noise Suppression Fine-Tuning ──
-  - platform: template
-    id: ns_gain_floor
-    name: "Stationary Noise Suppression"
-    icon: mdi:waveform
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 1.0
-    step: 0.01
-    initial_value: 0.1
-    mode: slider
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_ns_gain_floor(x);
-  - platform: template
-    id: nn_gain_floor
-    name: "Non-Stationary Noise Suppression"
-    icon: mdi:waveform
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 1.0
-    step: 0.01
-    initial_value: 0.1
-    mode: slider
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_nn_gain_floor(x);
-  # ── Echo Suppression ──
-  - platform: template
-    id: echo_gamma_e
-    name: "Echo Gamma E"
-    icon: mdi:sine-wave
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 2.0
-    step: 0.1
-    initial_value: 1.0
-    mode: slider
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_echo_gamma_e(x);
-  - platform: template
-    id: echo_gamma_etail
-    name: "Echo Gamma E Tail"
-    icon: mdi:sine-wave
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 2.0
-    step: 0.1
-    initial_value: 1.0
-    mode: slider
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_echo_gamma_etail(x);
-  - platform: template
-    id: echo_gamma_enl
-    name: "Echo Gamma ENL"
-    icon: mdi:sine-wave
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 5.0
-    step: 0.1
-    initial_value: 1.0
-    mode: slider
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_echo_gamma_enl(x);
-  - platform: template
-    id: attns_nominal
-    name: "Non-Speech Attenuation Level"
-    icon: mdi:volume-off
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.0
-    max_value: 1.0
-    step: 0.05
-    initial_value: 0.5
-    mode: slider
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_attns_nominal(x);
 
 sensor:
   - platform: template
@@ -839,10 +392,6 @@ text_sensor:
     name: "Next timer name"
     icon: "mdi:timer"
     disabled_by_default: true
-  - platform: template
-    name: "Alarm time"
-    id: alarm_time
-    icon: mdi:bell-ring
   - platform: template
     name: "Current device time"
     id: current_time
@@ -1135,14 +684,14 @@ script:
               colors[6] = mute_color;
             } else {
               float num_leds_on = volume * NUM_LEDS;
-              float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+              float master_brightness = id(user_led_ring_brightness).state;
 
               for (int i = 0; i < NUM_LEDS; i++) {
                 float brightness = clamp(num_leds_on - i, 0.0f, 1.0f);
                 if (brightness > 0.0f) {
-                  uint8_t r = (uint8_t)(id(effect_color_r) * brightness * master_brightness);
-                  uint8_t g = (uint8_t)(id(effect_color_g) * brightness * master_brightness);
-                  uint8_t b = (uint8_t)(id(effect_color_b) * brightness * master_brightness);
+                  uint8_t r = (uint8_t)(id(user_led_ring_color_r) * brightness * master_brightness);
+                  uint8_t g = (uint8_t)(id(user_led_ring_color_g) * brightness * master_brightness);
+                  uint8_t b = (uint8_t)(id(user_led_ring_color_b) * brightness * master_brightness);
                   colors[i] = (r << 16) | (g << 8) | b;
                 }
               }
@@ -1218,7 +767,7 @@ script:
   # For the sake of simplicity and re-usability, the script calls child scripts defined below.
   # This script will be called every time one of these conditions is changing.
   - id: control_leds
-    mode: restart
+    mode: single  # Prevent multiple simultaneous executions
     then:
       - lambda: |
           // Cache expensive component checks
@@ -1230,7 +779,6 @@ script:
           static bool last_timer_active = false;
           static bool last_improv_ble = false;
           static bool last_init_progress = false;
-          static bool last_tts_playing = false;
 
           bool respeaker_failed = id(respeaker).is_failed();
           bool wifi_connected = id(wifi_id).is_connected();
@@ -1239,7 +787,6 @@ script:
           bool new_timer_ringing = id(timer_ringing).state;
           bool improv_ble = id(improv_ble_in_progress);
           bool init_progress = id(init_in_progress);
-          bool tts_playing = id(is_tts_playing);
 
           // Only update if something actually changed
           bool needs_update = (
@@ -1249,11 +796,10 @@ script:
             voice_phase != last_voice_phase ||
             new_timer_ringing != last_timer_ringing ||
             improv_ble != last_improv_ble ||
-            init_progress != last_init_progress ||
-            tts_playing != last_tts_playing
+            init_progress != last_init_progress
           );
 
-          if (! needs_update) return;
+          if (!needs_update) return;
 
           // Update cache
           last_respeaker_failed = respeaker_failed;
@@ -1263,10 +809,6 @@ script:
           last_timer_ringing = new_timer_ringing;
           last_improv_ble = improv_ble;
           last_init_progress = init_progress;
-          last_tts_playing = tts_playing;
-
-          ESP_LOGD("leds", "🎨 LED Control | Phase: %d | TTS: %d | Audio: %d | Timer:  %d", 
-                   voice_phase, tts_playing, id(is_any_audio_playing), new_timer_ringing);
 
           if (respeaker_failed) {
             id(control_leds_respeaker_startup_failed).execute();
@@ -1279,27 +821,12 @@ script:
             id(fetch_first_active_timer).execute();
           }
 
-          // NEW: Handle TTS and phase synchronization
-          // If TTS is playing but phase is idle, keep replying LEDs
-          if (tts_playing && voice_phase == ${voice_assist_idle_phase_id}) {
-            ESP_LOGD("leds", "🎨 LED Override: TTS playing, forcing REPLYING phase");
-            voice_phase = ${voice_assist_replying_phase_id};
-          }
-          
-          // NEW: If phase is replying but TTS is NOT playing, force to idle
-          // This fixes the stuck LEDs bug! 
-          if (! tts_playing && voice_phase == ${voice_assist_replying_phase_id}) {
-            ESP_LOGD("leds", "🎨 LED Fix: Phase is REPLYING but TTS stopped, forcing IDLE");
-            voice_phase = ${voice_assist_idle_phase_id};
-            id(voice_assistant_phase) = ${voice_assist_idle_phase_id};  // Update the actual phase
-          }
-
-          // Continue with existing logic... 
+          // Continue with existing logic...
           if (improv_ble) {
             id(control_leds_improv_ble_state).execute();
           } else if (init_progress) {
             id(control_leds_init_state).execute();
-          } else if (! wifi_connected || !api_connected){
+          } else if (!wifi_connected || !api_connected){
             id(control_leds_no_ha_connection_state).execute();
           } else if (new_timer_ringing) {
             id(control_leds_timer_ringing).execute();
@@ -1320,7 +847,6 @@ script:
           } else if (voice_phase == ${voice_assist_idle_phase_id}) {
             id(control_leds_voice_assistant_idle_phase).execute();
           }
-      - script.execute: update_satellite_sensors
 
   # Script executed if respeaker startup failed
   - id: control_leds_respeaker_startup_failed
@@ -1466,6 +992,9 @@ script:
       - delay: 2s
       - lambda: |-
           id(volume_display_active) = false;
+          // Turn off LEDs - any active effect will take over on next interval tick
+          uint32_t colors[12] = {0};
+          id(respeaker).set_led_ring(colors);
 
   # Script executed when the timer is ringing, to control the LEDs
   - id: control_leds_timer_ringing
@@ -1515,12 +1044,14 @@ script:
   # Script executed when the timer is ringing, to repeat the timer finished sound.
   - id: enable_repeat_one
     then:
+      # Turn on the repeat mode and pause for 500 ms between playlist items/repeats
       - media_player.repeat_one:
           id: external_media_player
           announcement: true
-      # Turn on the repeat mode and pause for 500 ms between playlist items/repeats
-      - lambda: |-
-            id(external_media_player)->set_playlist_delay_ms(1, 500);
+      - speaker_source.set_playlist_delay:
+          id: external_media_player
+          pipeline: announcement
+          delay: 500ms
 
   # Script execute when the timer is done ringing, to disable repeat mode.
   - id: disable_repeat
@@ -1529,8 +1060,10 @@ script:
       - media_player.repeat_off:
           id: external_media_player
           announcement: true
-      - lambda: |-
-            id(external_media_player)->set_playlist_delay_ms(1, 0);
+      - speaker_source.set_playlist_delay:
+          id: external_media_player
+          pipeline: announcement
+          delay: 0ms
 
   # Script executed when we want to play sounds on the device.
   - id: play_sound
@@ -1550,31 +1083,20 @@ script:
           if ( (id(external_media_player).state != media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING ) || priority) {
             id(external_media_player)
               ->make_call()
-              .set_media_url("file://" + sound_file)
+              .set_media_url("audio-file://" + sound_file)
               .set_announcement(true)
               .perform();
           }
 
   # Script used to fetch the first active timer (Stored in global first_active_timer)
   - id: fetch_first_active_timer
-    mode: single
     then:
       - lambda: |
-          static uint32_t last_fetch_time = 0;
-          uint32_t now = millis();
-
-          // Only fetch every 500ms to reduce overhead
-          if (now - last_fetch_time < 500) return;
-          last_fetch_time = now;
-
-          const auto timers = id(va).get_timers();
-          if (timers.empty()) return;
-
+          const auto &timers = id(va).get_timers();
           auto output_timer = *timers.begin();
-          for (auto &iterable_timer : timers) {
-            if (iterable_timer.is_active &&
-                iterable_timer.seconds_left <= output_timer.seconds_left) {
-              output_timer = iterable_timer;
+          for (const auto &timer : timers) {
+            if (timer.is_active && timer.seconds_left <= output_timer.seconds_left) {
+              output_timer = timer;
             }
           }
           id(first_active_timer) = output_timer;
@@ -1583,13 +1105,11 @@ script:
   - id: check_if_timers_active
     then:
       - lambda: |
-          const auto timers = id(va).get_timers();
+          const auto &timers = id(va).get_timers();
           bool output = false;
-          if (timers.size() > 0) {
-            for (auto &iterable_timer : timers) {
-              if(iterable_timer.is_active) {
-                output = true;
-              }
+          for (const auto &timer : timers) {
+            if (timer.is_active) {
+              output = true;
             }
           }
           id(is_timer_active) = output;
@@ -1626,32 +1146,31 @@ script:
       - lambda: |-
           id(publish_current_time).execute();
           // Check alarm
-          if (id(alarm_on).state && id(alarm_time).has_state()) {
-            // Get the stored alarm time from the sensor
-            auto set_alarm_time = id(alarm_time).state;
-            if (set_alarm_time.length() == 5 &&
-              isdigit(set_alarm_time[0]) && isdigit(set_alarm_time[1]) &&
-              isdigit(set_alarm_time[3]) && isdigit(set_alarm_time[4])) {
-              auto alarm_hour = std::stoi(set_alarm_time.substr(0, 2));
-              auto alarm_minute = std::stoi(set_alarm_time.substr(3, 2));
+          if (id(alarm_on).state) {
+            auto alarm_dt = id(alarm_time).state_as_esptime();
+            auto time_now = id(homeassistant_time).now();
 
-              // Trigger action if current time matches alarm time
-              auto time_now = id(homeassistant_time).now();
-              if (time_now.hour == alarm_hour && time_now.minute == alarm_minute) {
-                auto action = id(alarm_action).current_option();
-                if (action == "Play sound") {
-                  id(timer_ringing).turn_on();
-                } else if (action == "Send event") {
-                  id(send_alarm_event).execute();
-                } else if (action == "Sound and event") {
-                  id(timer_ringing).turn_on();
-                  id(send_alarm_event).execute();
-                }
+            if (time_now.hour == alarm_dt.hour && time_now.minute == alarm_dt.minute) {
+              auto action = id(alarm_action).current_option();
+              if (action == "Play sound") {
+                id(timer_ringing).turn_on();
+              } else if (action == "Send event") {
+                id(send_alarm_event).execute();
+              } else if (action == "Sound and event") {
+                id(timer_ringing).turn_on();
+                id(send_alarm_event).execute();
               }
-            } else {
-              ESP_LOGW("alarm", "Incorrect alarm time setting");
             }
           }
+
+  - id: send_wake_word_event
+    parameters:
+      wake_word: string
+    then:
+      - homeassistant.event:
+          event: esphome.wake_word_detected
+          data:
+            wake_word: !lambda return wake_word;
   - id: send_alarm_event
     then:
       - homeassistant.event:
@@ -1685,36 +1204,6 @@ script:
             id(current_time).publish_state(current_time_string);
             last_time_string = current_time_string;
           }
-  - id: auto_disable_amplifier
-    mode:  restart
-    then:
-      - delay: 2s
-      - if:
-          condition:
-            lambda: 'return ! id(is_any_audio_playing);'
-          then:
-            - switch.turn_off: amplifier_enable
-            - logger.log: "Auto-disabled amplifier - no audio playing"
-  - id: update_satellite_sensors
-    mode: restart
-    then:
-      - lambda: |-
-          // Update "Satellite Actually Responding" sensor
-          bool responding = id(is_tts_playing) || 
-                           (id(voice_assistant_phase) == ${voice_assist_replying_phase_id});
-          id(satellite_responding).publish_state(responding);
-          
-          // Update "Satellite Active" sensor
-          int phase = id(voice_assistant_phase);
-          bool active = phase == ${voice_assist_waiting_for_command_phase_id} ||
-                       phase == ${voice_assist_listening_for_command_phase_id} ||
-                       phase == ${voice_assist_thinking_phase_id} ||
-                       phase == ${voice_assist_replying_phase_id} ||
-                       id(is_tts_playing);
-          id(satellite_active).publish_state(active);
-          
-          ESP_LOGD("sensors", "📊 Sensors updated | Responding: %d | Active: %d", responding, active);
-
 
 i2s_audio:
   - id: i2s_output
@@ -1792,28 +1281,32 @@ speaker:
 
 sendspin:
   id: sendspin_hub
-  task_stack_in_psram: true
-  kalman_process_error: 0.01
+  task_stack_in_psram: false
+
+audio_file:
+  - id: mute_switch_on_sound
+    file: ${mute_switch_on_sound_file}
+  - id: mute_switch_off_sound
+    file: ${mute_switch_off_sound_file}
+  - id: timer_finished_sound
+    file: ${timer_finished_sound_file}
+  - id: wake_word_triggered_sound
+    file: ${wake_word_triggered_sound_file}
+  - id: error_cloud_expired
+    file: ${error_cloud_expired_sound_file}
 
 media_source:
-  - platform: sendspin
-    id: sendspin_source
-  - platform: http_request
-    id: http_source
+  - platform: audio_file
+    id: audio_file_announcement_source
+  - platform: audio_http
+    id: http_announcement_source
+    buffer_size: 250000
+  - platform: audio_http
+    id: http_media_source
     buffer_size: 500000
-  - platform: file
-    id: file_source
-    files:
-      - id: mute_switch_on_sound
-        file: ${mute_switch_on_sound_file}
-      - id: mute_switch_off_sound
-        file: ${mute_switch_off_sound_file}
-      - id: timer_finished_sound
-        file: ${timer_finished_sound_file}
-      - id: wake_word_triggered_sound
-        file: ${wake_word_triggered_sound_file}
-      - id: error_cloud_expired
-        file: ${error_cloud_expired_sound_file}
+  - platform: sendspin
+    id: sendspin_media_source
+    fixed_delay: 480 microseconds  # The AIC3204 DAC used, as configured, on the VPE delays audio by 480 microseconds
 
 media_player:
   - platform: sendspin
@@ -1821,130 +1314,57 @@ media_player:
   - platform: speaker_source
     id: external_media_player
     name: Media Player
-    announcement_speaker: announcement_resampling_speaker
-    media_speaker: media_resampling_speaker
-    announcement_pipeline: 
-      format: FLAC
-      num_channels: 1
+    announcement_pipeline:
+      format: FLAC     # FLAC is the least processor intensive codec
+      num_channels: 1  # Stereo audio is unnecessary for announcements
       sample_rate: 48000
-    media_pipeline: 
-      format:  FLAC
-      num_channels: 2
+      speaker: announcement_resampling_speaker
+      sources:
+        - audio_file_announcement_source
+        - http_announcement_source
+    media_pipeline:
+      format: FLAC     # FLAC is the least processor intensive codec
+      num_channels: 1  # Try mono for XVF AEC
       sample_rate: 48000
+      speaker: media_resampling_speaker
+      sources:
+        - http_media_source
+        - sendspin_media_source
     volume_increment: 0.05
     volume_min: 0.0
     volume_max: 1.0
-    sources: 
-      - file_source
-      - http_source
-      - sendspin_source
-    
-    on_mute: 
-      - delay: 100ms
+    on_mute:
+      - delay: 100ms  # Debounce
       - script.execute: control_leds_volume_changed
-    
-    on_unmute: 
-      - delay: 100ms
+    on_unmute:
+      - delay: 100ms  # Debounce
       - script.execute: control_leds_volume_changed
-    
-    on_volume: 
-      if: 
-        condition: 
+    on_volume:
+      if:
+        condition:
           - lambda: return !id(init_in_progress);
-        then: 
-          - delay: 100ms
+        then:
+          - delay: 100ms  # Debounce
           - script.execute: control_leds_volume_changed
-    
     on_announcement:
-      - logger.log:
-          format: "📢 MP: ANNOUNCEMENT | Setting audio flag | State: %d"
-          args:  ['id(external_media_player).state']
-      - globals.set:
-          id: is_any_audio_playing
-          value:  'true'
-      - switch.turn_on: amplifier_enable
-      - logger.log:
-          format: "📢 MP: ANNOUNCEMENT | TTS: %d | Audio: %d | Amp: %d"
-          args: ['id(is_tts_playing)', 'id(is_any_audio_playing)', 'id(amplifier_enable).state']
-      - script.execute: update_satellite_sensors  # NEW
-      - mixer_speaker.apply_ducking: 
+      - mixer_speaker.apply_ducking:
           id: media_mixing_input
           decibel_reduction: 20
           duration: 0.0s
-    
     on_state:
-      - logger.log:
-          format: "🔄 MP: STATE | State: %d | TTS: %d | Audio: %d"
-          args: ['id(external_media_player).state', 'id(is_tts_playing)', 'id(is_any_audio_playing)']
-      - if:
-          condition:
-            and:
-              - switch.is_off: timer_ringing
-              - not: 
-                  voice_assistant.is_running:  {}
-              - not:
-                  media_player.is_announcing: external_media_player
-          then:
-            - mixer_speaker.apply_ducking:
-                id: media_mixing_input
-                decibel_reduction: 0
-                duration: 1.0s
-    
-    on_play:
-      - logger.log:
-          format: "▶️  MP: PLAY | Media started | State: %d"
-          args: ['id(external_media_player).state']
-      - globals.set:
-          id: is_any_audio_playing
-          value: 'true'
-      - switch.turn_on: amplifier_enable
-      - logger.log:
-          format: "▶️ MP: PLAY | TTS:  %d | Audio: %d | Amp: %d"
-          args: ['id(is_tts_playing)', 'id(is_any_audio_playing)', 'id(amplifier_enable).state']
-    
-    on_idle:
-      - logger.log:
-          format: "⏸️ MP: IDLE | All audio finished | State: %d"
-          args:  ['id(external_media_player).state']
-      - logger.log:
-          format: "⏸️ MP:  IDLE | Before guard | TTS: %d | Audio: %d | Phase: %d"
-          args:  ['id(is_tts_playing)', 'id(is_any_audio_playing)', 'id(voice_assistant_phase)']
-      - globals.set:
-          id: tts_guard_active
-          value: 'true'
-      - delay: 500ms  # Guard period for multi-sentence TTS
-      - if:
-          condition:
-            not:
-              media_player.is_announcing:
-                id: external_media_player
-          then:
-            - globals.set:
-                id: tts_guard_active
-                value: 'false'
-            - globals.set:
-                id: is_tts_playing
-                value: 'false'
-            - globals.set:
-                id: is_any_audio_playing
-                value: 'false'
-            - lambda: |
-                if (id(voice_assistant_phase) == ${voice_assist_replying_phase_id}) {
-                  ESP_LOGD("media_player", "⏸️ MP: IDLE | Setting phase from REPLYING to IDLE");
-                  id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
-                }
-            - logger.log:
-                format: "⏸️ MP:  IDLE | After clear | TTS:  %d | Audio: %d | Phase: %d"
-                args: ['id(is_tts_playing)', 'id(is_any_audio_playing)', 'id(voice_assistant_phase)']
-            - script.execute: auto_disable_amplifier
-            - script.execute: update_satellite_sensors
-            - script.execute: control_leds
-            - logger.log: "⏸️ MP:  IDLE | Completed"
-          else:
-            - globals.set:
-                id: tts_guard_active
-                value: 'false'
-            - logger.log: "IDLE guard cancelled — media player resumed"
+      if:
+        condition:
+          and:
+            - switch.is_off: timer_ringing
+            - not:
+                voice_assistant.is_running:
+            - not:
+                media_player.is_announcing: external_media_player
+        then:
+          - mixer_speaker.apply_ducking:
+              id: media_mixing_input
+              decibel_reduction: 0
+              duration: 1.0s
 
 external_components:
   - source:
@@ -1956,43 +1376,12 @@ external_components:
     refresh: 0s
   - source:
       type: git
-      url: https://github.com/tommygun333/Respeaker-XVF3800-ESPHome-integration
+      url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration
       ref: main
     components:
       - respeaker_xvf3800
       - aic3104
     refresh: 0s
-  - source:
-      # https://github.com/esphome/esphome/pull/12256
-      type: git
-      url: https://github.com/esphome/esphome
-      ref: a2d98e1d5e020200db8f3caf27a74a939a661dc4
-    components: [audio]
-  - source:
-      # https://github.com/esphome/esphome/pull/12258
-      type: git
-      url: https://github.com/esphome/esphome
-      ref: b4b7c5b25ebe0f2ab988f700219fa3c57b2377b7
-    components: [media_player]
-  - source:
-      # https://github.com/esphome/esphome/pull/12284
-      type: git
-      url: https://github.com/esphome/esphome
-      ref: d48058e140c98f5c2d902661d851a6b712d62434
-    components: [sendspin]
-  - source:
-      # https://github.com/esphome/esphome/pull/14013
-      type: git
-      url: https://github.com/esphome/esphome
-      ref: 51dcce3d1f22865ebb458a5447bbc877ac946b5a
-    components: [mdns]
-  - source:
-      # https://github.com/esphome/esphome/pull/12429
-      type: git
-      url: https://github.com/esphome/esphome
-      ref: b49b09b6ae56502aa3ce51be86f90d732d019b2c
-    refresh: 0s
-    components: [file, http_request, media_source, speaker_source]
 
 respeaker_xvf3800:
   id: respeaker
@@ -2045,12 +1434,14 @@ micro_wake_word:
   microphone:
     microphone: i2s_mics
     channels: 1
-    gain_factor: 6
+    # gain_factor: 4
   stop_after_detection: false
   models:
     - model: https://github.com/kahrendt/microWakeWord/releases/download/okay_nabu_20241226.3/okay_nabu.json
       # probability_cutoff: 0.8
       id: okay_nabu
+    - model: https://raw.githubusercontent.com/formatBCE/Respeaker-Lite-ESPHome-integration/refs/heads/main/microwakeword/models/v2/kenobi.json
+      id: kenobi
     - model: hey_jarvis
       id: hey_jarvis
     - model: hey_mycroft
@@ -2059,13 +1450,16 @@ micro_wake_word:
       id: stop
       internal: true
   vad:
-    probability_cutoff: 0.5
+    probability_cutoff: 0.05
   on_wake_word_detected:
     # If the wake word is detected when the device is muted (Possible with the software mute switch): Do nothing
     - if:
         condition:
           switch.is_off: mic_mute_switch
         then:
+          - script.execute:
+              id: send_wake_word_event
+              wake_word: !lambda return wake_word;
           # If a timer is ringing: Stop it, do not start the voice assistant (We can stop timer from voice!)
           - if:
               condition:
@@ -2102,10 +1496,19 @@ micro_wake_word:
                                   - delay: 300ms
                             - voice_assistant.start:
                                 wake_word: !lambda return wake_word;
+                            # Pin the AEC beam to the wake-word direction before any
+                            # other sound source can steal it. Gated by the user-facing
+                            # switch so the feature is opt-in.
+                            - if:
+                                condition:
+                                  switch.is_on: beam_lock_enabled
+                                then:
+                                  - lambda: id(respeaker).lock_beam();
 
 select:
   - platform: template
     name: "Wake word sensitivity"
+    id: wake_word_sensitivity
     optimistic: true
     initial_option: Slightly sensitive
     restore_value: true
@@ -2204,107 +1607,18 @@ select:
             id(user_led_ring_color_g) = 50.0f;
             id(user_led_ring_color_b) = 200.0f;
           }
-  - platform: template
-    name: "Noise Suppression Level"
-    id: noise_suppression_level_select
-    icon: "mdi:microphone-off"
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    initial_option: "High"
-    options:
-      - "Low"
-      - "Medium"
-      - "High"
-      - "Maximum"
-    on_value:
-      then:
-        - lambda: |-
-            uint8_t level = 3;  // Default: High
-            if (x == "Low") level = 1;
-            else if (x == "Medium") level = 2;
-            else if (x == "High") level = 3;
-            else if (x == "Maximum") level = 4;
-            id(respeaker).set_noise_suppression_level(level);
-  - platform: template
-    name: "High-Pass Filter"
-    id: hpf_select
-    icon: mdi:filter
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    initial_option: "Off"
-    options:
-      - "Off"
-      - "70Hz"
-      - "125Hz"
-      - "150Hz"
-      - "180Hz"
-    on_value:
-      then:
-        - lambda: |-
-            uint8_t mode = 0;
-            if (x == "70Hz") mode = 1;
-            else if (x == "125Hz") mode = 2;
-            else if (x == "150Hz") mode = 3;
-            else if (x == "180Hz") mode = 4;
-            id(respeaker).set_hpf_mode(mode);
-  - platform: template
-    name: "AEC Emphasis"
-    id: aec_emphasis_select
-    icon: mdi:equalizer
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    initial_option: "Off"
-    options:
-      - "Off"
-      - "On"
-      - "On+EQ"
-    on_value:
-      then:
-        - lambda: |-
-            uint8_t mode = 0;
-            if (x == "On") mode = 1;
-            else if (x == "On+EQ") mode = 2;
-            id(respeaker).set_aec_emphasis(mode);
-  - platform: template
-    name: "Doubletalk Sensitivity"
-    id: dt_sensitive_select
-    icon: mdi:account-multiple
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    initial_option: "3"
-    options:
-      - "0"
-      - "1"
-      - "2"
-      - "3"
-      - "4"
-      - "5"
-      - "10"
-      - "11"
-      - "12"
-      - "13"
-      - "14"
-      - "15"
-    on_value:
-      then:
-        - lambda: |-
-            id(respeaker).set_dt_sensitive((uint8_t)atoi(x.c_str()));
 
 voice_assistant:
   id: va
   microphone:
     microphone: i2s_mics
-    channels: 1
+    channels: 0
   media_player: external_media_player
   micro_wake_word: mww
   use_wake_word: false
-  noise_suppression_level: 2
-  auto_gain: 31 dbfs
-  volume_multiplier: 2
+  noise_suppression_level: 0
+  auto_gain: 0 dbfs
+  volume_multiplier: 1
   on_client_connected:
     - if:
         condition:
@@ -2342,19 +1656,6 @@ voice_assistant:
               priority: true
               sound_file: "error_cloud_expired"
   # When the voice assistant starts: Play a wake up sound, duck audio.
-    - logger.log:
-        format: "❌ VA: ERROR | Code: %d | TTS: %d | Audio: %d | Phase: %d"
-        args: ['code.c_str()', 'id(is_tts_playing)', 'id(is_any_audio_playing)', 'id(voice_assistant_phase)']
-    - globals.set:
-        id: is_tts_playing
-        value: 'false'
-    - globals.set:
-        id: is_any_audio_playing
-        value: 'false'
-    - script.execute: auto_disable_amplifier
-    - lambda: id(voice_assistant_phase) = ${voice_assist_error_phase_id};
-    - script.execute: control_leds
-     
   on_start:
     - mixer_speaker.apply_ducking:
         id: media_mixing_input
@@ -2363,15 +1664,14 @@ voice_assistant:
   on_listening:
     - lambda: id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
     - script.execute: control_leds
-    - logger.log:
-        format: "🎤 VA:  LISTENING | Phase: %d | TTS: %d | Audio: %d"
-        args: ['id(voice_assistant_phase)', 'id(is_tts_playing)', 'id(is_any_audio_playing)']
-    - script.execute: update_satellite_sensors
   on_stt_vad_start:
     - lambda: id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
     - script.execute: control_leds
   on_stt_vad_end:
     - lambda: id(voice_assistant_phase) = ${voice_assist_thinking_phase_id};
+    # Release the beam as soon as command capture is over, so the stop-word
+    # detector can still hear the user from anywhere in the room during TTS.
+    - lambda: id(respeaker).unlock_beam();
     - script.execute: control_leds
   on_intent_progress:
     - if:
@@ -2384,120 +1684,51 @@ voice_assistant:
           # Start a script that would potentially enable the stop word if the response is longer than a second
           - script.execute: activate_stop_word_once
   on_tts_start:
-    - logger.log:
-        format: "🔊 VA:  TTS_START | Setting flags | Phase: %d"
-        args: ['id(voice_assistant_phase)']
-    - globals.set:
-        id: is_tts_playing
-        value: 'true'
-    - globals.set:
-        id: is_any_audio_playing
-        value: 'true'
-    - switch.turn_on: amplifier_enable
-    - logger.log:
-        format: "🔊 VA: TTS_START | Flags set | TTS: %d | Audio: %d | Amp: %d"
-        args:  ['id(is_tts_playing)', 'id(is_any_audio_playing)', 'id(amplifier_enable).state']
-    - script.execute: update_satellite_sensors  # NEW
     - if:
         condition:
+          # The intent_progress trigger didn't start the TTS Reponse
           lambda: 'return id(voice_assistant_phase) != ${voice_assist_replying_phase_id};'
         then:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
           - script.execute: control_leds
+          # Start a script that would potentially enable the stop word if the response is longer than a second
           - script.execute: activate_stop_word_once
-  
   on_tts_end:
-    - logger.log:
-        format: "🔊 VA: TTS_END | TTS data sent | TTS: %d | Audio: %d | Phase: %d"
-        args:  ['id(is_tts_playing)', 'id(is_any_audio_playing)', 'id(voice_assistant_phase)']
     - script.execute:
         id: send_tts_uri_event
-        tts_uri:  !lambda 'return x;'
-    # NEW: Add logging (but don't clear flags - let media_player handle it)
-    - logger.log: "TTS data sent (speaker may still be playing)"
-  
+        tts_uri: !lambda 'return x;'
   on_stt_end:
-    # EXISTING: Keep as-is
-    - logger.log:
-        format: "📝 VA: STT_END | Text: '%s' | Phase: %d"
-        args: ['x.c_str()', 'id(voice_assistant_phase)']
     - script.execute:
         id: send_stt_text_event
         stt_text: !lambda 'return x;'
 
-  # When the voice assistant ends ... 
+  # When the voice assistant ends ...
   on_end:
-    - logger.log: 
-        format: "🏁 VA: END | Before wait | TTS: %d | Audio: %d | Phase: %d"
-        args:  ['id(is_tts_playing)', 'id(is_any_audio_playing)', 'id(voice_assistant_phase)']
+    # Safety-net unlock: covers paths where on_stt_vad_end never fired
+    # (pipeline error mid-capture, abort, etc.). Idempotent.
+    - lambda: id(respeaker).unlock_beam();
     - wait_until:
-        not:  
-          voice_assistant.is_running: 
-    - logger.log: "🏁 VA: END | After wait_until"
-    - mixer_speaker.apply_ducking: 
+        not:
+          voice_assistant.is_running:
+    # Stop ducking audio.
+    - mixer_speaker.apply_ducking:
         id: media_mixing_input
         decibel_reduction: 0
         duration: 1.0s
+    # If the end happened because of an error, let the error phase on for a second
     - if:
-        condition: 
+        condition:
           lambda: return id(voice_assistant_phase) == ${voice_assist_error_phase_id};
-        then:  
+        then:
           - delay: 1s
-    - lambda: |
-        if (! id(is_tts_playing)) {
-          ESP_LOGD("voice_assistant", "🏁 VA: END | No TTS playing, going to idle");
-          id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
-        } else {
-          ESP_LOGD("voice_assistant", "🏁 VA: END | TTS flag still set, waiting for media player");
-        }
+    # Reset the voice assistant phase id and reset the LED animations.
+    - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
     - script.execute: control_leds
-    - logger.log:
-        format: "🏁 VA: END | After control_leds | TTS:   %d | Audio: %d | Phase: %d"
-        args: ['id(is_tts_playing)', 'id(is_any_audio_playing)', 'id(voice_assistant_phase)']
-    
-    # MODIFIED: Check if media player is actually idle before clearing flags
-    - delay: 5s  # Increased from 3s to give media player more time
-    - logger.log:
-        format: "⏰ VA: END | 5s timeout check | TTS: %d | Audio: %d | Phase:  %d | MP State: %d"
-        args: ['id(is_tts_playing)', 'id(is_any_audio_playing)', 'id(voice_assistant_phase)', 'id(external_media_player).state']
-    - if: 
-        condition:
-          lambda: |
-            // Only clear if TTS flag is stuck AND media player is actually idle
-            return id(is_tts_playing) && 
-                   (id(external_media_player).state == media_player:: MEDIA_PLAYER_STATE_IDLE);
-        then:
-          - logger.log:
-              format: "⚠️ SAFETY: Media player idle but TTS flags stuck - clearing!"
-              args: []
-          - globals.set:
-              id: is_tts_playing
-              value: 'false'
-          - globals.set:
-              id: is_any_audio_playing
-              value:  'false'
-          - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
-          - script.execute: control_leds
-          - script.execute: auto_disable_amplifier
-    - if:
-        condition:
-          lambda: |
-            // Log if media player is still playing (expected behavior)
-            return id(is_tts_playing) && 
-                   (id(external_media_player).state != media_player::MEDIA_PLAYER_STATE_IDLE);
-        then:
-          - logger.log:
-              format: "✅ SAFETY: Media player still active (State: %d) - flags OK"
-              args: ['id(external_media_player).state']
-  
-  
   on_timer_finished:
     - switch.turn_on: timer_ringing
     - lambda: |
         id(next_timer).publish_state(-1);
         id(next_timer_name).publish_state("-");
-  
-  # ...  rest of your timer handlers stay the same ...
   on_timer_started:
     - lambda: |
         id(check_if_timers_active).execute();
@@ -2507,7 +1738,6 @@ voice_assistant:
           id(next_timer_name).publish_state(id(first_active_timer).name);
         }
     - script.execute: control_leds
-  
   on_timer_cancelled:
     - lambda: |
         id(check_if_timers_active).execute();
@@ -2520,8 +1750,7 @@ voice_assistant:
           id(next_timer_name).publish_state("-");
         }
     - script.execute: control_leds
-  
-  on_timer_updated: 
+  on_timer_updated:
     - lambda: |
         id(check_if_timers_active).execute();
         if (id(is_timer_active)) {
@@ -2530,8 +1759,7 @@ voice_assistant:
           id(next_timer_name).publish_state(id(first_active_timer).name);
         }
     - script.execute: control_leds
-  
-  on_timer_tick: 
+  on_timer_tick:
     # Reduce LED updates - only every 5 seconds instead of every second
     - lambda: |
         id(fetch_first_active_timer).execute();
@@ -2555,7 +1783,6 @@ button:
     entity_category: config
     disabled_by_default: true
     icon: "mdi:restart"
-  
-     
+
 debug:
   update_interval: 5s
