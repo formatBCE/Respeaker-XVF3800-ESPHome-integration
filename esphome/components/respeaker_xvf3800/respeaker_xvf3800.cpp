@@ -16,32 +16,15 @@ static const char *const TAG = "respeaker_xvf3800";
 
 void RespeakerXVF3800::setup() {
   ESP_LOGCONFIG(TAG, "Setting up RespeakerXVF3800...");
-  
-  // Try to detect the correct I2C address
-    std::vector<uint8_t> test_addresses = {0x2C, 0x28, 0x2A, 0x42, 0x44, 0x50, 0x51};
-    bool found_device = false;
-    
-    for (uint8_t addr : test_addresses) {
-      ESP_LOGD(TAG, "Trying I2C address: 0x%02X", addr);
-      this->set_i2c_address(addr);
-      
-      uint8_t test_data;
-      i2c::ErrorCode err = this->read(&test_data, 1);
-      if (err == i2c::ERROR_OK) {
-        ESP_LOGI(TAG, "Found device at I2C address: 0x%02X", addr);
-        found_device = true;
-        break;
-      } else {
-        ESP_LOGD(TAG, "No response at address 0x%02X, error: %d", addr, (int)err);
-      }
-    }
-    
-    if (!found_device) {
-      ESP_LOGE(TAG, "Could not find XVF3800 device on any tested address");
-      this->mark_failed();
-      return;
-    }
-  
+
+  uint8_t test_data;
+  i2c::ErrorCode err = this->read(&test_data, 1);
+  if (err != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Could not communicate with XVF3800 at configured I2C address");
+    this->mark_failed();
+    return;
+  }
+
   // Wait for XMOS to boot...
   this->set_timeout(3000, [this]() {
     if (!this->dfu_get_version_()) {
@@ -241,7 +224,7 @@ uint32_t RespeakerXVF3800::load_buf_(uint8_t *buf, const uint8_t max_len, const 
     buf_len = max_len;
   }
 
-  for (uint8_t i = 0; i < max_len; i++) {
+  for (uint32_t i = 0; i < buf_len; i++) {
     buf[i] = this->firmware_bin_[offset + i];
   }
   return buf_len;
@@ -311,9 +294,9 @@ bool RespeakerXVF3800::dfu_get_version_() {
 }
 
 bool RespeakerXVF3800::dfu_reboot_() {
-  const uint8_t reboot_req[] = {DFU_CONTROLLER_SERVICER_RESID, DFU_CONTROLLER_SERVICER_RESID_DFU_REBOOT, 1};
+  const uint8_t reboot_req[] = {DFU_CONTROLLER_SERVICER_RESID, DFU_CONTROLLER_SERVICER_RESID_DFU_REBOOT, 1, 0};
 
-  auto error_code = this->write(reboot_req, 4);
+  auto error_code = this->write(reboot_req, sizeof(reboot_req));
   if (error_code != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Reboot request failed");
     return false;
@@ -500,17 +483,17 @@ void RespeakerXVF3800::unlock_beam() {
   ESP_LOGI(TAG, "Beam lock released");
 }
 
-void RespeakerXVF3800::xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *value, uint8_t write_byte_num) {
-  std::vector<uint8_t> payload;
-  payload.push_back(resid);
-  payload.push_back(cmd);
-  payload.push_back(write_byte_num);
-  
-  for (uint8_t i = 0; i < write_byte_num; i++) {
-    payload.push_back(value[i]);
+void RespeakerXVF3800::xmos_write_bytes(uint8_t resid, uint8_t cmd, const uint8_t *value, uint8_t write_byte_num) {
+  uint8_t payload[3 + 255];
+  payload[0] = resid;
+  payload[1] = cmd;
+  payload[2] = write_byte_num;
+
+  if (write_byte_num > 0 && value != nullptr) {
+    memcpy(&payload[3], value, write_byte_num);
   }
-  
-  i2c::ErrorCode err = this->write(payload.data(), payload.size());
+
+  i2c::ErrorCode err = this->write(payload, 3 + write_byte_num);
   
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error in xmos_write_bytes. resid=%d, cmd=%d, error=%d", resid, cmd, (int)err);
@@ -556,7 +539,6 @@ std::string RespeakerXVF3800::read_dfu_version() {
 // --- MuteSwitch Component ---
 void MuteSwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Mute Switch...");
-  this->set_update_interval(1000);
 }
 
 void MuteSwitch::dump_config() {
@@ -592,7 +574,6 @@ void MuteSwitch::write_state(bool state) {
 // --- DFUVersionTextSensor Component ---
 void DFUVersionTextSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DFU Version Text Sensor...");
-  this->set_update_interval(30000);
 }
 
 void DFUVersionTextSensor::dump_config() {
@@ -614,7 +595,6 @@ void DFUVersionTextSensor::update() {
 // --- LEDBeamSensor Component ---
 void LEDBeamSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LED Beam Sensor...");
-  this->set_update_interval(500);
 }
 
 void LEDBeamSensor::dump_config() {

@@ -304,7 +304,7 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   bool beam_locked_{false};
   
   // Helper method for XMOS communication
-  void xmos_write_bytes(uint8_t resid, uint8_t cmd, uint8_t *value, uint8_t write_byte_num);
+  void xmos_write_bytes(uint8_t resid, uint8_t cmd, const uint8_t *value, uint8_t write_byte_num);
 
   // Reads one of the four AEC azimuth slots (radians) returned by cmd 75:
   //   0 = beam 1 (fixed beam 1 when fixed mode is on)
