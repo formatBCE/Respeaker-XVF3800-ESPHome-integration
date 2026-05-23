@@ -255,6 +255,18 @@ globals:
     type: float
     restore_value: no
     initial_value: '0.0'
+  - id: is_tts_playing
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: tts_guard_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: is_any_audio_playing
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 # Time sync from Home Assistant
 time:
@@ -358,6 +370,24 @@ switch:
     id: alarm_on
     icon: mdi:bell-badge
     name: "Alarm on"
+  - platform: template
+    name: "Amplifier Enable"
+    id: amplifier_enable
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    internal: false
+    turn_on_action:
+      then:
+        - lambda: |-
+            uint8_t payload[] = {20, 1, 2, 31, 0};
+            id(respeaker).write(payload, sizeof(payload));
+            ESP_LOGI("amplifier", "Amplifier ENABLED");
+    turn_off_action:
+      then:
+        - lambda: |-
+            uint8_t payload[] = {20, 1, 2, 31, 1};
+            id(respeaker).write(payload, sizeof(payload));
+            ESP_LOGI("amplifier", "Amplifier DISABLED (no hum)");
 
 binary_sensor:
 
@@ -1204,6 +1234,16 @@ script:
             id(current_time).publish_state(current_time_string);
             last_time_string = current_time_string;
           }
+  - id: auto_disable_amplifier
+    mode: restart
+    then:
+      - delay: 2s
+      - if:
+          condition:
+            lambda: 'return !id(is_any_audio_playing);'
+          then:
+            - switch.turn_off: amplifier_enable
+            - logger.log: "Auto-disabled amplifier - no audio playing"
 
 i2s_audio:
   - id: i2s_output
@@ -1347,6 +1387,10 @@ media_player:
           - delay: 100ms  # Debounce
           - script.execute: control_leds_volume_changed
     on_announcement:
+      - globals.set:
+          id: is_any_audio_playing
+          value: 'true'
+      - switch.turn_on: amplifier_enable
       - mixer_speaker.apply_ducking:
           id: media_mixing_input
           decibel_reduction: 20
@@ -1365,6 +1409,41 @@ media_player:
               id: media_mixing_input
               decibel_reduction: 0
               duration: 1.0s
+    on_play:
+      - globals.set:
+          id: is_any_audio_playing
+          value: 'true'
+      - switch.turn_on: amplifier_enable
+    on_idle:
+      - globals.set:
+          id: tts_guard_active
+          value: 'true'
+      - delay: 500ms
+      - if:
+          condition:
+            not:
+              media_player.is_announcing:
+                id: external_media_player
+          then:
+            - globals.set:
+                id: tts_guard_active
+                value: 'false'
+            - globals.set:
+                id: is_tts_playing
+                value: 'false'
+            - globals.set:
+                id: is_any_audio_playing
+                value: 'false'
+            - lambda: |-
+                if (id(voice_assistant_phase) == ${voice_assist_replying_phase_id}) {
+                  id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+                }
+            - script.execute: auto_disable_amplifier
+            - script.execute: control_leds
+          else:
+            - globals.set:
+                id: tts_guard_active
+                value: 'false'
 
 external_components:
   - source:
@@ -1655,6 +1734,15 @@ voice_assistant:
               id: play_sound
               priority: true
               sound_file: "error_cloud_expired"
+    - globals.set:
+        id: is_tts_playing
+        value: 'false'
+    - globals.set:
+        id: is_any_audio_playing
+        value: 'false'
+    - script.execute: auto_disable_amplifier
+    - lambda: id(voice_assistant_phase) = ${voice_assist_error_phase_id};
+    - script.execute: control_leds
   # When the voice assistant starts: Play a wake up sound, duck audio.
   on_start:
     - mixer_speaker.apply_ducking:
@@ -1684,6 +1772,13 @@ voice_assistant:
           # Start a script that would potentially enable the stop word if the response is longer than a second
           - script.execute: activate_stop_word_once
   on_tts_start:
+    - globals.set:
+        id: is_tts_playing
+        value: 'true'
+    - globals.set:
+        id: is_any_audio_playing
+        value: 'true'
+    - switch.turn_on: amplifier_enable
     - if:
         condition:
           # The intent_progress trigger didn't start the TTS Reponse
@@ -1721,9 +1816,27 @@ voice_assistant:
           lambda: return id(voice_assistant_phase) == ${voice_assist_error_phase_id};
         then:
           - delay: 1s
-    # Reset the voice assistant phase id and reset the LED animations.
-    - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+    - lambda: |-
+        if (!id(is_tts_playing)) {
+          id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+        }
     - script.execute: control_leds
+    - delay: 5s
+    - if:
+        condition:
+          lambda: |-
+            return id(is_tts_playing) &&
+                   (id(external_media_player).state == media_player::MEDIA_PLAYER_STATE_IDLE);
+        then:
+          - globals.set:
+              id: is_tts_playing
+              value: 'false'
+          - globals.set:
+              id: is_any_audio_playing
+              value: 'false'
+          - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+          - script.execute: control_leds
+          - script.execute: auto_disable_amplifier
   on_timer_finished:
     - switch.turn_on: timer_ringing
     - lambda: |
