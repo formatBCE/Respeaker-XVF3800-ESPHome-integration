@@ -1237,7 +1237,7 @@ script:
   - id: auto_disable_amplifier
     mode: restart
     then:
-      - delay: 2s
+      - delay: 2s  # Let short TTS/media transitions settle before power-down.
       - if:
           condition:
             lambda: 'return !id(is_any_audio_playing);'
@@ -1418,7 +1418,7 @@ media_player:
       - globals.set:
           id: tts_guard_active
           value: 'true'
-      - delay: 500ms
+      - delay: 500ms  # Guard period for multi-sentence TTS pauses.
       - if:
           condition:
             not:
@@ -1821,7 +1821,7 @@ voice_assistant:
           id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
         }
     - script.execute: control_leds
-    - delay: 5s
+    - delay: 5s  # Safety timeout for stuck TTS flag when media is already idle.
     - if:
         condition:
           lambda: |-
