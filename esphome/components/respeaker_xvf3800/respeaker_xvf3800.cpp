@@ -395,7 +395,7 @@ bool RespeakerXVF3800::read_azimuth_radians_(float &out_radians, uint8_t beam_in
   uint8_t aec_resp[17];
 
   // The XMOS transport protocol can return CTRL_WAIT (1) when the servicer is
-  // busy; the host is expected to retry. The 500 ms LED poll hides this naturally,
+  // busy; the host is expected to retry. The fast LED poll hides this naturally,
   // but a one-shot read (e.g. from lock_beam) has to retry explicitly.
   const uint8_t max_attempts = 8;
   for (uint8_t attempt = 0; attempt < max_attempts; attempt++) {

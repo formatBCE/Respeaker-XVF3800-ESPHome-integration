@@ -89,7 +89,7 @@ CONFIG_SCHEMA = cv.Schema({
         icon="mdi:led-on",
         accuracy_decimals=0,
         unit_of_measurement="",
-    ).extend(cv.polling_component_schema("500ms")),
+    ).extend(cv.polling_component_schema("100ms")),
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     cv.Optional(CONF_FIRMWARE): cv.All(
                 {
