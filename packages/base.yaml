@@ -1,0 +1,228 @@
+# =============================================================================
+# Respeaker XVF3800 satellite — base package
+#
+# Core platform setup: node identity, ESP32-S3 build options, network, API,
+# I2C bus, and the external components.
+#
+# This package declares the substitution defaults for the whole project.
+# Override any of them in your own configuration.
+# =============================================================================
+
+substitutions:
+  # --- Node identity -------------------------------------------------------
+  name: respeaker-xvf3800-assistant
+  friendly_name: reSpeaker XVF3800 Assistant
+
+  # --- Source refs ---------------------------------------------------------
+  # Ref of this repository. It selects the C++ components and the DFU firmware.
+  # Set it to the same tag or commit that you use for the packages themselves.
+  respeaker_ref: main
+  # Ref of the patched i2s_audio fork. The stock component does not work.
+  i2s_audio_ref: respeaker_microphone
+
+  # --- Tuning --------------------------------------------------------------
+  # Set this to "true" if your network does not broadcast its SSID.
+  hidden_ssid: "false"
+  log_level: INFO
+
+  # --- Voice assistant phases ----------------------------------------------
+  # The voice assistant is ready to be triggered by a wake word
+  voice_assist_idle_phase_id: '1'
+  # The voice assistant is waiting for a voice command (after being triggered by the wake word)
+  voice_assist_waiting_for_command_phase_id: '2'
+  # The voice assistant is listening for a voice command
+  voice_assist_listening_for_command_phase_id: '3'
+  # The voice assistant is currently processing the command
+  voice_assist_thinking_phase_id: '4'
+  # The voice assistant is replying to the command
+  voice_assist_replying_phase_id: '5'
+  # The voice assistant is not ready
+  voice_assist_not_ready_phase_id: '10'
+  # The voice assistant encountered an error
+  voice_assist_error_phase_id: '11'
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  project:
+    name: formatbce.Respeaker XVF3800 Satellite
+    version: 2026.6.0
+  min_version: 2026.6.0
+  on_boot:
+    - priority: 375
+      then:
+        - sensor.template.publish:
+            id: next_timer
+            state: -1
+        # Run the script to refresh the LED status
+        - script.execute: control_leds
+        # If after 10 minutes, the device is still initializing (It did not yet connect to Home Assistant), turn off the init_in_progress variable and run the script to refresh the LED status
+        - delay: 10min
+        - if:
+            condition:
+              lambda: return id(init_in_progress);
+            then:
+              - lambda: id(init_in_progress) = false;
+              - script.execute: control_leds
+
+esp32:
+  board: esp32-s3-devkitc-1
+  cpu_frequency: 240MHz
+  variant: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: "y"
+
+      # Moves instructions and read only data from flash into PSRAM on boot.
+      # Both enabled allows instructions to execute while a flash operation is in progress without needing to be placed in IRAM.
+      # Considerably speeds up mWW at the cost of using more PSRAM.
+      CONFIG_SPIRAM_RODATA: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
+
+      CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST: "y"
+      CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY: "y"
+
+      CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
+      CONFIG_MBEDTLS_SSL_PROTO_TLS1_3: "y"  # TLS1.3 support isn't enabled by default in IDF 5.1.5
+
+
+# Credentials are not set here. A remote package cannot read secrets.
+# Supply "ssid" and "password" from your own configuration. The two blocks merge.
+wifi:
+  id: wifi_id
+  fast_connect: ${hidden_ssid}
+  # Add power management and connection optimizations
+  power_save_mode: none  # Disable power saving for better performance
+  reboot_timeout: 10min  # Prevent unnecessary reboots
+  on_connect:
+    - lambda: id(improv_ble_in_progress) = false;
+    - script.execute: control_leds
+  on_disconnect:
+    - script.execute: control_leds
+
+network:
+  enable_ipv6: true
+
+logger:
+  level: ${log_level}
+  initial_level: ${log_level}
+  logs:
+    sensor: WARN
+    voice_assistant: INFO
+    micro_wake_word: INFO
+    i2s_audio: WARN
+    respeaker_xvf3800: INFO
+
+api:
+  id: api_id
+  actions:
+    - action: set_led_color
+      variables:
+        red: float
+        green: float
+        blue: float
+      then:
+        - lambda: |-
+            id(user_led_ring_color_r) = std::min(255.0f, std::max(0.0f, red));
+            id(user_led_ring_color_g) = std::min(255.0f, std::max(0.0f, green));
+            id(user_led_ring_color_b) = std::min(255.0f, std::max(0.0f, blue));
+        - select.set:
+            id: user_led_color_preset
+            option: "Custom"
+    - action: start_va
+      then:
+        - voice_assistant.start
+    - action: stop_va
+      then:
+        - voice_assistant.stop
+    - action: set_time_zone
+      variables:
+        posix_time_zone: string
+      then:
+        - lambda: |-
+            setenv("TZ", posix_time_zone.c_str(), 1);
+            tzset();
+            id(saved_time_zone) = posix_time_zone;
+            id(publish_current_time).execute();
+  on_client_connected:
+    - script.execute: control_leds
+  on_client_disconnected:
+    - script.execute: control_leds
+
+i2c:
+  - id: internal_i2c
+    sda: GPIO5
+    scl: GPIO6
+    scan: true
+    frequency: 100kHz
+
+psram:
+  mode: octal
+  speed: 80MHz
+  ignore_not_found: false  # The VPE has PSRAM, so this is safe. Allows configuring WiFi driver to use more resources (done automatically by the speaker media player)
+
+
+globals:
+  - id: init_in_progress
+    type: bool
+    restore_value: no
+    initial_value: 'true'
+  # Global variable storing the state of ImprovBLE. Used to draw different LED animations
+  - id: improv_ble_in_progress
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  # Global variable tracking the phase of the voice assistant (defined above). Initialized to not_ready
+  - id: voice_assistant_phase
+    type: int
+    restore_value: no
+    initial_value: ${voice_assist_not_ready_phase_id}
+  - id: saved_time_zone
+    type: std::string
+    restore_value: yes
+    initial_value: '"UTC0"'
+
+external_components:
+  # Patched i2s_audio. The stock ESPHome component does not work with this board.
+  - source:
+      type: git
+      url: https://github.com/formatBCE/esphome
+      ref: ${i2s_audio_ref}
+    components:
+      - i2s_audio
+    refresh: 0s
+  - source:
+      type: git
+      url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration
+      ref: ${respeaker_ref}
+    components:
+      - respeaker_xvf3800
+      - aic3104
+    refresh: 0s
+
+select:
+  - platform: logger
+    id: logger_select
+    name: Logger Level
+    disabled_by_default: true
+
+button:
+  - platform: factory_reset
+    id: factory_reset_button
+    name: "Factory Reset"
+    entity_category: diagnostic
+    internal: true
+  - platform: restart
+    id: restart_button
+    name: "Restart"
+    entity_category: config
+    disabled_by_default: true
+    icon: "mdi:restart"
+
+debug:
+  update_interval: 5s
