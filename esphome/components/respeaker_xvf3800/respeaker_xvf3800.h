@@ -302,7 +302,16 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   // pinned fixed beam) from the chip instead of the auto-select beam, so the
   // LED ring stays pointed at the captured wake-word direction.
   bool beam_locked_{false};
-  
+
+  // Last azimuth the DSP actually returned, and when. The 10 Hz beam poll keeps
+  // this fresh, so lock_beam() can pin the beam without its own blocking read.
+  float last_azimuth_rad_{0.0f};
+  uint32_t last_azimuth_ms_{0};
+
+  // Last frame written by set_led_ring(), so an unchanged frame skips the bus.
+  uint32_t last_led_frame_[12]{};
+  bool led_frame_valid_{false};
+
   // Helper method for XMOS communication
   void xmos_write_bytes(uint8_t resid, uint8_t cmd, const uint8_t *value, uint8_t write_byte_num);
 
@@ -312,6 +321,8 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   //   2 = free-running beam
   //   3 = auto-select beam (default — what the adaptive LED follows)
   // Returns true on success. Shared by read_led_beam_direction() and lock_beam().
+  // Single attempt, never blocks: a CTRL_WAIT answer returns false and the next
+  // poll retries. Do not add a retry loop here — it runs in the main loop.
   bool read_azimuth_radians_(float &out_radians, uint8_t beam_index = 3);
 };
 

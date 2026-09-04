@@ -159,7 +159,7 @@ i2c:
     sda: GPIO5
     scl: GPIO6
     scan: true
-    frequency: 100kHz
+    frequency: 400kHz
 
 psram:
   mode: octal

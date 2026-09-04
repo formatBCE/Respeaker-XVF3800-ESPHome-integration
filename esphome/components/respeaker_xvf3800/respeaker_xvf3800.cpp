@@ -8,6 +8,7 @@
 #include "esphome/core/hal.h"
 
 #include <cinttypes>
+#include <cstring>
 
 namespace esphome {
 namespace respeaker_xvf3800 {
@@ -394,39 +395,41 @@ bool RespeakerXVF3800::read_azimuth_radians_(float &out_radians, uint8_t beam_in
 
   uint8_t aec_resp[17];
 
-  // The XMOS transport protocol can return CTRL_WAIT (1) when the servicer is
-  // busy; the host is expected to retry. The fast LED poll hides this naturally,
-  // but a one-shot read (e.g. from lock_beam) has to retry explicitly.
-  const uint8_t max_attempts = 8;
-  for (uint8_t attempt = 0; attempt < max_attempts; attempt++) {
-    i2c::ErrorCode err = this->write_read(aec_req, sizeof(aec_req), aec_resp, sizeof(aec_resp));
-    if (err != i2c::ERROR_OK) {
-      ESP_LOGW(TAG, "Failed to read AEC azimuth values, error=%d", (int)err);
-      return false;
-    }
-
-    uint8_t status = aec_resp[0];
-    if (status == CTRL_DONE) {
-      // 4 floats follow at bytes [1..16]: beam 1, beam 2, free-running, auto-select.
-      const uint8_t offset = 1 + beam_index * sizeof(float);
-      float radians;
-      memcpy(&radians, &aec_resp[offset], sizeof(float));
-      ESP_LOGD(TAG, "AEC azimuth (beam %u, raw radians): %f", beam_index, radians);
-      out_radians = radians;
-      return true;
-    }
-
-    if (status != CTRL_WAIT && status != SERVICER_COMMAND_RETRY) {
-      ESP_LOGW(TAG, "AEC azimuth read returned unexpected status 0x%02X — giving up", status);
-      return false;
-    }
-
-    delayMicroseconds(500);
+  // Single attempt. The XMOS transport protocol can return CTRL_WAIT (1) when the
+  // servicer is busy, and the host is expected to retry — but this runs in the
+  // ESPHome main loop, so the 10 Hz beam poll is the retry mechanism. A blocking
+  // retry loop here stalls every other component's loop().
+  i2c::ErrorCode err = this->write_read(aec_req, sizeof(aec_req), aec_resp, sizeof(aec_resp));
+  if (err != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "Failed to read AEC azimuth values, error=%d", (int)err);
+    return false;
   }
 
-  // Exhausted retries on a retry status. This is normal during silence
-  // (no source to localize → no fresh azimuth), hence DEBUG not WARN.
-  ESP_LOGD(TAG, "AEC azimuth read still busy after %u attempts (no fresh data)", max_attempts);
+  uint8_t status = aec_resp[0];
+  if (status == CTRL_DONE) {
+    // 4 floats follow at bytes [1..16]: beam 1, beam 2, free-running, auto-select.
+    const uint8_t offset = 1 + beam_index * sizeof(float);
+    float radians;
+    memcpy(&radians, &aec_resp[offset], sizeof(float));
+    ESP_LOGD(TAG, "AEC azimuth (beam %u, raw radians): %f", beam_index, radians);
+    out_radians = radians;
+    // Cache only the auto-select beam. That is the slot lock_beam() wants, and
+    // the pinned slots would otherwise feed the lock back its own value.
+    if (beam_index == 3) {
+      this->last_azimuth_rad_ = radians;
+      this->last_azimuth_ms_ = millis();
+    }
+    return true;
+  }
+
+  if (status != CTRL_WAIT && status != SERVICER_COMMAND_RETRY) {
+    ESP_LOGW(TAG, "AEC azimuth read returned unexpected status 0x%02X", status);
+    return false;
+  }
+
+  // Servicer busy. Normal during silence (no source to localize → no fresh
+  // azimuth), hence DEBUG not WARN. The next poll picks it up.
+  ESP_LOGD(TAG, "AEC azimuth read busy (status 0x%02X, no fresh data)", status);
   return false;
 }
 
@@ -454,9 +457,15 @@ int RespeakerXVF3800::read_led_beam_direction() {
 }
 
 void RespeakerXVF3800::lock_beam() {
+  // Prefer the value the 10 Hz beam poll already has. It is at most one poll
+  // old, it is the direction the wake word came from, and it costs no bus time
+  // on the wake-word path. Fall back to one read if the poll is off or stale.
+  const uint32_t max_age_ms = 500;
   float radians;
-  if (!this->read_azimuth_radians_(radians)) {
-    ESP_LOGW(TAG, "lock_beam: failed to read current azimuth; not locking");
+  if (this->last_azimuth_ms_ != 0 && (millis() - this->last_azimuth_ms_) <= max_age_ms) {
+    radians = this->last_azimuth_rad_;
+  } else if (!this->read_azimuth_radians_(radians)) {
+    ESP_LOGW(TAG, "lock_beam: no recent azimuth and read failed; not locking");
     return;
   }
 
@@ -501,8 +510,14 @@ void RespeakerXVF3800::xmos_write_bytes(uint8_t resid, uint8_t cmd, const uint8_
 }
 
 void RespeakerXVF3800::set_led_ring(uint32_t *rgb_array) {
-  ESP_LOGD(TAG, "Setting LED ring with individual colors");
-  
+  // The YAML animation interval calls this 20 times a second whether the frame
+  // changed or not. Skip the bus when it did not.
+  if (this->led_frame_valid_ && memcmp(this->last_led_frame_, rgb_array, sizeof(this->last_led_frame_)) == 0) {
+    return;
+  }
+  memcpy(this->last_led_frame_, rgb_array, sizeof(this->last_led_frame_));
+  this->led_frame_valid_ = true;
+
   uint8_t payload[48];
   
   for (int i = 0; i < 12; i++) {
