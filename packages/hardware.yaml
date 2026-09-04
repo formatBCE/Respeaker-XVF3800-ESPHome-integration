@@ -124,6 +124,8 @@ respeaker_xvf3800:
     internal: true
     # One non-blocking read per poll. The DSP answers CTRL_WAIT during silence;
     # the next poll is the retry, so keep this fast enough to track a speaker.
+    # This poll is also the azimuth source for beam lock. Set update_interval to
+    # never, and the Beam lock switch stops working.
     update_interval: 100ms
   firmware:
     url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin

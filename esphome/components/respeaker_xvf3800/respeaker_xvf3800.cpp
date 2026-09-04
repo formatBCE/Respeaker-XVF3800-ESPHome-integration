@@ -465,7 +465,9 @@ void RespeakerXVF3800::lock_beam() {
   if (this->last_azimuth_ms_ != 0 && (millis() - this->last_azimuth_ms_) <= max_age_ms) {
     radians = this->last_azimuth_rad_;
   } else if (!this->read_azimuth_radians_(radians)) {
-    ESP_LOGW(TAG, "lock_beam: no recent azimuth and read failed; not locking");
+    // Expected when the beam poll is disabled, or when the DSP has no source to
+    // localize yet. Beam lock is an opt-in enhancement, so a miss is not an error.
+    ESP_LOGD(TAG, "lock_beam: no fresh azimuth (beam poll disabled or DSP busy); not locking");
     return;
   }
 

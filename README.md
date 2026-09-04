@@ -287,6 +287,35 @@ The device gives four actions to Home Assistant:
 Call `set_time_zone` one time after you add the device. The device saves the
 value and restores it at the next boot.
 
+### Events
+
+The device sends three events to Home Assistant. Use them as automation
+triggers.
+
+| Event | Data | Sent when |
+| --- | --- | --- |
+| `esphome.wake_word_detected` | `wake_word` | The device detects a wake word |
+| `esphome.stt_text` | `text` | Speech to text gives a result |
+| `esphome.tts_uri` | `uri` | Text to speech gives a response URL |
+
+### Play the response on an external speaker
+
+You can trigger an automation on `esphome.tts_uri` and send the `uri` to another
+speaker, for example a Sonos. This works, but you must know three limits first.
+
+Set the conversation agent to ask no follow-up questions. An external speaker
+gives no echo signal to the XVF3800 canceller. If the agent sets
+`continue_conversation`, the microphone stays open, and the device can hear its
+own response as a new command.
+
+The local media player still gets the same URL. It downloads the audio and it
+decodes the audio a second time. To stop this path, add
+`voice_assistant: media_player: !remove` to your configuration. To hide the
+entity from Home Assistant, set `internal: true` on `external_media_player`.
+
+The stop word gets its timing from the **local** announcement state. So the stop
+word can start late, or stop early, when the audio plays on an external speaker.
+
 ---
 
 ## LED effects
@@ -313,7 +342,9 @@ shows this direction on the ring. When the wake word starts the pipeline, the
 device locks the beam to the current direction. The device releases the beam at
 the end of the pipeline. So the ring stays on the speaker during one utterance.
 
-The **Beam lock** switch turns this behaviour on and off.
+The **Beam lock** switch turns this behaviour on and off. Beam lock reads the
+direction from the `led_beam_sensor` poll. Keep that poll on, or beam lock has
+no direction to use.
 
 ---
 
@@ -376,6 +407,12 @@ muted. Lower the value of the **Wake word sensitivity** select.
 
 **The build uses old package files.** ESPHome caches a remote package for the
 `refresh` time. Set `refresh: 0s` while you test.
+
+**The response plays many seconds late.** Home Assistant sends the text to
+speech audio while the engine still makes it. So a slow engine gives a slow
+download. Test with a static audio file on the same host. If the static file is
+fast, the cause is the engine. Use a local text to speech engine to make the
+delay smaller.
 
 **The LED ring stays off.** The `control_leds` script did not run. Check the
 connection to Home Assistant, because the LED state follows the API state.
