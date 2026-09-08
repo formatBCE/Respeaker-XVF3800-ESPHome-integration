@@ -62,20 +62,29 @@ globals:
     type: float
     restore_value: no
     initial_value: '0.0'
-
-number:
-  - platform: template
-    id: user_led_ring_brightness
-    name: "LED Ring Brightness"
-    icon: mdi:brightness-6
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    min_value: 0.4
-    max_value: 1.0
-    step: 0.05
-    initial_value: 0.8
-    mode: slider
+  # Master level for every effect. The "LED Ring" light owns this value and
+  # writes it in its on_state trigger. The light restores it, so this global
+  # does not.
+  - id: user_led_ring_brightness
+    type: float
+    restore_value: no
+    initial_value: '0.8'
+  # Effect that the "LED Ring" light shows while the satellite is idle.
+  - id: user_idle_effect
+    type: std::string
+    restore_value: no
+    initial_value: '"solid"'
+  - id: user_idle_speed
+    type: float
+    restore_value: no
+    initial_value: '0.5'
+  # Set this flag to make "control_leds" repaint even when no tracked state
+  # changed. The light uses it, because a light change moves none of the
+  # states that "control_leds" caches.
+  - id: led_force_update
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 interval:
   - interval: 50ms
@@ -89,6 +98,8 @@ interval:
           std::string effect = id(current_led_effect);
           if (effect == "off") {
             return;
+          } else if (effect == "solid") {
+            id(update_solid_effect).execute();
           } else if (effect == "breathe") {
             id(update_breathe_effect).execute();
           } else if (effect == "rainbow") {
@@ -136,6 +147,23 @@ script:
             id(last_led_update_time) = millis(); // Reset timer for smooth animation start
           }
 
+  # Steady ring. This is what the "LED Ring" light shows when Home Assistant
+  # selects no effect. The C++ driver drops an unchanged frame, so a steady
+  # ring costs no I2C traffic.
+  - id: update_solid_effect
+    then:
+      - lambda: |-
+          float brightness = id(user_led_ring_brightness) * id(effect_brightness);
+
+          uint8_t r = (uint8_t)(id(effect_color_r) * brightness);
+          uint8_t g = (uint8_t)(id(effect_color_g) * brightness);
+          uint8_t b = (uint8_t)(id(effect_color_b) * brightness);
+          uint32_t current_color = (r << 16) | (g << 8) | b;
+
+          uint32_t colors[12];
+          for (int i = 0; i < 12; i++) colors[i] = current_color;
+          id(respeaker).set_led_ring(colors);
+
   # Individual update scripts for each animated effect
   - id: update_breathe_effect
     then:
@@ -148,7 +176,7 @@ script:
           phase += dt * id(effect_speed);
           while (phase >= 1.0f) phase -= 1.0f;
 
-          float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+          float master_brightness = id(user_led_ring_brightness) * id(effect_brightness);
           float breath_brightness = 0.5f * (1.0f + sinf(phase * 2.0f * M_PI)) * master_brightness;
 
           uint8_t r = (uint8_t)(id(effect_color_r) * breath_brightness);
@@ -174,7 +202,7 @@ script:
           constexpr int NUM_LEDS = 12;
           constexpr float HUE_STEP = 1.0f / NUM_LEDS;
           uint32_t colors[NUM_LEDS];
-          float brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+          float brightness = id(user_led_ring_brightness) * id(effect_brightness);
 
           float current_hue = hue_offset;
           for (int i = 0; i < NUM_LEDS; i++) {
@@ -206,7 +234,7 @@ script:
           if (tail_length > NUM_LEDS - 1) tail_length = NUM_LEDS - 1;
 
           uint32_t colors[NUM_LEDS] = {0};
-          float brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+          float brightness = id(user_led_ring_brightness) * id(effect_brightness);
 
           uint8_t head_r = (uint8_t)(id(effect_color_r) * brightness);
           uint8_t head_g = (uint8_t)(id(effect_color_g) * brightness);
@@ -245,7 +273,7 @@ script:
           if (tail_length > NUM_LEDS - 1) tail_length = NUM_LEDS - 1;
 
           uint32_t colors[NUM_LEDS] = {0};
-          float brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+          float brightness = id(user_led_ring_brightness) * id(effect_brightness);
 
           uint8_t head_r = (uint8_t)(id(effect_color_r) * brightness);
           uint8_t head_g = (uint8_t)(id(effect_color_g) * brightness);
@@ -302,7 +330,7 @@ script:
 
           // Render colors
           uint32_t colors[NUM_LEDS];
-          float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+          float master_brightness = id(user_led_ring_brightness) * id(effect_brightness);
 
           for (int i = 0; i < NUM_LEDS; i++) {
             float current_led_brightness = led_brightness[i] * master_brightness;
@@ -333,7 +361,7 @@ script:
 
           float timer_ratio = (float)NUM_LEDS * seconds_left / std::max(total_seconds, (uint32_t)1);
 
-          float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+          float master_brightness = id(user_led_ring_brightness) * id(effect_brightness);
 
           for (int i = 0; i < NUM_LEDS; i++) {
             float bar_brightness = clamp(timer_ratio - i, 0.0f, 1.0f);
@@ -364,7 +392,7 @@ script:
               colors[6] = mute_color;
             } else {
               float num_leds_on = volume * NUM_LEDS;
-              float master_brightness = id(user_led_ring_brightness).state;
+              float master_brightness = id(user_led_ring_brightness);
 
               for (int i = 0; i < NUM_LEDS; i++) {
                 float brightness = clamp(num_leds_on - i, 0.0f, 1.0f);
@@ -419,7 +447,7 @@ script:
             id(animated_beam_position) = current_pos;
 
             // Render the smoothed beam
-            float master_brightness = id(user_led_ring_brightness).state * id(effect_brightness);
+            float master_brightness = id(user_led_ring_brightness) * id(effect_brightness);
 
             for (int i = 0; i < NUM_LEDS; i++) {
               // Calculate circular distance from current LED to the animated position
@@ -479,7 +507,12 @@ script:
             init_progress != last_init_progress
           );
 
-          if (!needs_update) return;
+          // A light change moves none of the states above, so the light sets an
+          // explicit flag to ask for a repaint.
+          bool force = id(led_force_update);
+          id(led_force_update) = false;
+
+          if (!needs_update && !force) return;
 
           // Update cache
           last_respeaker_failed = respeaker_failed;
@@ -700,17 +733,135 @@ script:
           speed: 1.0
           brightness: 0.7
 
-  # Script executed when the voice assistant is idle (waiting for a wake word)
+  # Script executed when the voice assistant is idle (waiting for a wake word).
+  # The "LED Ring" light owns this state. If the light is off, the ring stays
+  # dark.
   - id: control_leds_voice_assistant_idle_phase
     then:
-      - script.execute:
-          id: led_set_effect
-          effect: "off"
-          r: 0.0
-          g: 0.0
-          b: 0.0
-          speed: 0.0
-          brightness: 0.0
+      - if:
+          condition:
+            light.is_on: led_ring_light
+          then:
+            - script.execute:
+                id: led_set_effect
+                effect: !lambda return id(user_idle_effect);
+                r: !lambda return id(user_led_ring_color_r);
+                g: !lambda return id(user_led_ring_color_g);
+                b: !lambda return id(user_led_ring_color_b);
+                speed: !lambda return id(user_idle_speed);
+                # The master level already sits in user_led_ring_brightness.
+                brightness: 1.0
+          else:
+            - script.execute:
+                id: led_set_effect
+                effect: "off"
+                r: 0.0
+                g: 0.0
+                b: 0.0
+                speed: 0.0
+                brightness: 0.0
+
+# The "rgb" light platform needs three float outputs. These three are stubs on
+# purpose. The platform multiplies the color by the brightness before it writes
+# an output, but the animation engine needs the color and the level apart. The
+# light's on_state trigger reads "remote_values" instead, which keeps them
+# apart.
+output:
+  - platform: template
+    id: led_ring_out_r
+    type: float
+    write_action:
+      - lambda: |-
+          // The animation engine writes the ring. This output is a stub.
+  - platform: template
+    id: led_ring_out_g
+    type: float
+    write_action:
+      - lambda: |-
+          // The animation engine writes the ring. This output is a stub.
+  - platform: template
+    id: led_ring_out_b
+    type: float
+    write_action:
+      - lambda: |-
+          // The animation engine writes the ring. This output is a stub.
+
+# The LED ring light.
+#
+# The light is the one authority for the ring color and the ring level. Its
+# on_state trigger is the only writer of user_led_ring_color_* and of
+# user_led_ring_brightness. The color is also the accent color of every voice,
+# timer and error animation.
+#
+# The four effects below hold no logic. They exist only to fill the effect list
+# in Home Assistant. The on_state trigger maps the effect name to the animation
+# engine, so there is one mapping point.
+light:
+  - platform: rgb
+    id: led_ring_light
+    name: "LED Ring"
+    icon: mdi:led-strip-variant
+    red: led_ring_out_r
+    green: led_ring_out_g
+    blue: led_ring_out_b
+    restore_mode: RESTORE_DEFAULT_OFF
+    default_transition_length: 0s
+    gamma_correct: 0
+    effects:
+      - lambda:
+          name: "Breathe"
+          update_interval: 1h
+          lambda: |-
+            // The on_state trigger maps this name to the animation engine.
+      - lambda:
+          name: "Twinkle"
+          update_interval: 1h
+          lambda: |-
+            // The on_state trigger maps this name to the animation engine.
+      - lambda:
+          name: "Comet CW"
+          update_interval: 1h
+          lambda: |-
+            // The on_state trigger maps this name to the animation engine.
+      - lambda:
+          name: "Comet CCW"
+          update_interval: 1h
+          lambda: |-
+            // The on_state trigger maps this name to the animation engine.
+    on_state:
+      - lambda: |-
+          auto v = id(led_ring_light).remote_values;
+          id(user_led_ring_color_r) = v.get_red() * 255.0f;
+          id(user_led_ring_color_g) = v.get_green() * 255.0f;
+          id(user_led_ring_color_b) = v.get_blue() * 255.0f;
+
+          // Keep the last level when the light goes off. If the level went to
+          // zero, every voice animation would go dark too.
+          if (v.is_on()) {
+            id(user_led_ring_brightness) = v.get_brightness();
+          }
+
+          // StringRef compares against a literal without an allocation.
+          auto e = id(led_ring_light).get_effect_name();
+          if (e == "Breathe") {
+            id(user_idle_effect) = "breathe";
+            id(user_idle_speed) = 0.5f;
+          } else if (e == "Twinkle") {
+            id(user_idle_effect) = "twinkle";
+            id(user_idle_speed) = 10.0f;
+          } else if (e == "Comet CW") {
+            id(user_idle_effect) = "comet_cw";
+            id(user_idle_speed) = 1.0f;
+          } else if (e == "Comet CCW") {
+            id(user_idle_effect) = "comet_ccw";
+            id(user_idle_speed) = 1.0f;
+          } else {
+            id(user_idle_effect) = "solid";
+            id(user_idle_speed) = 0.0f;
+          }
+
+          id(led_force_update) = true;
+      - script.execute: control_leds
 
 select:
   - platform: template
@@ -732,37 +883,35 @@ select:
       - "Pink"
       - "Custom"
     on_value:
+      # The light is the one authority for the color. Push the preset into the
+      # light and let its on_state trigger write the color globals.
+      #
+      # "Custom" writes nothing. That keeps the boot deterministic, because the
+      # light then keeps the color that it restored.
       - lambda: |-
+          float r, g, b;
           if (x == "Purple") {
-            id(user_led_ring_color_r) = 255.0f;
-            id(user_led_ring_color_g) = 0.0f;
-            id(user_led_ring_color_b) = 255.0f;
+            r = 255.0f; g = 0.0f;   b = 255.0f;
           } else if (x == "Blue") {
-            id(user_led_ring_color_r) = 0.0f;
-            id(user_led_ring_color_g) = 0.0f;
-            id(user_led_ring_color_b) = 255.0f;
+            r = 0.0f;   g = 0.0f;   b = 255.0f;
           } else if (x == "Green") {
-            id(user_led_ring_color_r) = 0.0f;
-            id(user_led_ring_color_g) = 255.0f;
-            id(user_led_ring_color_b) = 0.0f;
+            r = 0.0f;   g = 255.0f; b = 0.0f;
           } else if (x == "Yellow") {
-            id(user_led_ring_color_r) = 255.0f;
-            id(user_led_ring_color_g) = 255.0f;
-            id(user_led_ring_color_b) = 0.0f;
+            r = 255.0f; g = 255.0f; b = 0.0f;
           } else if (x == "Cyan") {
-            id(user_led_ring_color_r) = 0.0f;
-            id(user_led_ring_color_g) = 255.0f;
-            id(user_led_ring_color_b) = 255.0f;
+            r = 0.0f;   g = 255.0f; b = 255.0f;
           } else if (x == "White") {
-            id(user_led_ring_color_r) = 255.0f;
-            id(user_led_ring_color_g) = 255.0f;
-            id(user_led_ring_color_b) = 255.0f;
+            r = 255.0f; g = 255.0f; b = 255.0f;
           } else if (x == "Orange") {
-            id(user_led_ring_color_r) = 255.0f;
-            id(user_led_ring_color_g) = 128.0f;
-            id(user_led_ring_color_b) = 0.0f;
+            r = 255.0f; g = 128.0f; b = 0.0f;
           } else if (x == "Pink") {
-            id(user_led_ring_color_r) = 255.0f;
-            id(user_led_ring_color_g) = 50.0f;
-            id(user_led_ring_color_b) = 200.0f;
+            r = 255.0f; g = 50.0f;  b = 200.0f;
+          } else {
+            return;
           }
+
+          // Use make_call() and not light.turn_on. A call that does not set the
+          // state changes the color but keeps the light off.
+          auto call = id(led_ring_light).make_call();
+          call.set_rgb(r / 255.0f, g / 255.0f, b / 255.0f);
+          call.perform();

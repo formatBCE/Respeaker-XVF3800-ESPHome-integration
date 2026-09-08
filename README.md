@@ -32,15 +32,15 @@ The device gives these entities to Home Assistant:
 | Alarm action | select | Selects what the alarm does |
 | Wake word sensitivity | select | Sets the wake word threshold |
 | LED Ring Color Preset | select | Selects the LED ring colour |
-| LED Ring Brightness | number | Sets the LED ring brightness |
+| LED Ring | light | Sets the LED ring colour, the brightness and the idle effect |
 | Firmware Version | text sensor | Shows the XMOS DSP firmware version |
 | Current device time | text sensor | Shows the device clock |
 | Next timer, Next timer name | sensor, text sensor | Show the first active timer |
 | Media Player | media player | Plays announcements and media |
 | Restart, Factory Reset | button | Restart and factory reset |
 
-The device also has a 12-LED ring. The LED ring is not a light entity, because
-the DSP controls it over I2C. Read [LED effects](#led-effects) for more information.
+The **LED Ring** light controls the 12-LED ring. Read
+[LED effects](#led-effects) for more information.
 
 ---
 
@@ -320,8 +320,8 @@ word can start late, or stop early, when the audio plays on an external speaker.
 
 ## LED effects
 
-The ring has 12 RGB LEDs. The DSP controls them over I2C, so there is no
-ESPHome light component. The driver writes the ring as one 12-entry array.
+The ring has 12 RGB LEDs. The DSP controls them over I2C. The driver writes the
+ring as one 12-entry array.
 
 All animation is in YAML, in `packages/leds.yaml`:
 
@@ -332,8 +332,45 @@ All animation is in YAML, in `packages/leds.yaml`:
 To add an effect, add a script and add a branch in the interval. Do not change
 the C++ component.
 
-The `update_rainbow_effect` and `update_comet_cw_effect` scripts work, but no
-`control_leds_*` script selects them. Call `led_set_effect` to use them.
+The `update_rainbow_effect` script works, but no `control_leds_*` script selects
+it. Call `led_set_effect` to use it.
+
+### The LED Ring light
+
+The **LED Ring** light is an ESPHome `rgb` light. The ring is not an addressable
+output, so the light does not write the LEDs. The light writes the animation
+engine instead.
+
+The light owns the idle look. If you turn the light on, the ring shows the light
+colour and the light effect while the satellite waits for the wake word. If you
+turn the light off, the ring stays dark. The voice, timer and error animations
+always come first.
+
+The light is the one authority for the ring colour and the ring level:
+
+- The light colour is also the accent colour of every animation.
+- The light brightness is the master level of every animation. The level stays
+  the same when you turn the light off, so the voice animations keep the last
+  level.
+- The `LED Ring Color Preset` select and the `set_led_color` action write the
+  light. The light then writes the colour globals.
+
+The light gives these effects to Home Assistant:
+
+| Effect | Animation |
+| --- | --- |
+| None | A steady ring |
+| Breathe | The ring fades in and out |
+| Twinkle | Single LEDs fade in and out |
+| Comet CW | A comet turns clockwise |
+| Comet CCW | A comet turns counterclockwise |
+
+The light keeps the largest colour component at full, and moves the level to the
+brightness axis. The hue stays the same. So `set_led_color` with `(128, 64, 0)`
+reads back as `(255, 128, 0)` at half brightness.
+
+A volume change or a mute change shows the volume for 2 seconds. The light
+returns after that.
 
 ### Beam direction
 
@@ -424,7 +461,6 @@ connection to Home Assistant, because the LED state follows the API state.
 1. The board has no buttons. So you can only stop a timer or a response when you
    say "stop". You cannot start the pipeline by hand.
 2. There is no hardware volume control. Only the software volume works.
-3. There is no light entity. The DSP controls the LED ring over I2C.
 
 ---
 

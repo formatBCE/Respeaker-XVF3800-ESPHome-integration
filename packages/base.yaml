@@ -127,10 +127,19 @@ api:
         green: float
         blue: float
       then:
+        # The "LED Ring" light is the one authority for the color. Push the
+        # color into the light and let its on_state trigger write the color
+        # globals and repaint the ring.
+        #
+        # The light keeps the largest component at full and moves the level to
+        # the brightness axis. The hue stays the same.
         - lambda: |-
-            id(user_led_ring_color_r) = std::min(255.0f, std::max(0.0f, red));
-            id(user_led_ring_color_g) = std::min(255.0f, std::max(0.0f, green));
-            id(user_led_ring_color_b) = std::min(255.0f, std::max(0.0f, blue));
+            float r = std::min(255.0f, std::max(0.0f, red));
+            float g = std::min(255.0f, std::max(0.0f, green));
+            float b = std::min(255.0f, std::max(0.0f, blue));
+            auto call = id(led_ring_light).make_call();
+            call.set_rgb(r / 255.0f, g / 255.0f, b / 255.0f);
+            call.perform();
         - select.set:
             id: user_led_color_preset
             option: "Custom"
