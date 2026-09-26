@@ -18,25 +18,47 @@ static const char *const TAG = "respeaker_xvf3800";
 void RespeakerXVF3800::setup() {
   ESP_LOGCONFIG(TAG, "Setting up RespeakerXVF3800...");
 
-  uint8_t test_data;
-  i2c::ErrorCode err = this->read(&test_data, 1);
-  if (err != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Could not communicate with XVF3800 at configured I2C address");
-    this->mark_failed();
-    return;
-  }
+  this->setup_version_attempts_ = 0;
+  this->schedule_setup_version_check_();
+}
 
-  // Wait for XMOS to boot...
-  this->set_timeout(3000, [this]() {
-    if (!this->dfu_get_version_()) {
-      ESP_LOGE(TAG, "Communication with Respeaker XVF3800 failed");
-      this->mark_failed();
-    } else if (!this->versions_match_() && this->firmware_bin_is_valid_()) {
-      ESP_LOGW(TAG, "Expected XMOS version: %u.%u.%u; found: %u.%u.%u. Updating...", this->firmware_bin_version_major_,
-               this->firmware_bin_version_minor_, this->firmware_bin_version_patch_, this->firmware_version_major_,
-               this->firmware_version_minor_, this->firmware_version_patch_);
-      this->start_dfu_update();
+void RespeakerXVF3800::schedule_setup_version_check_() {
+  this->set_timeout("setup_version", SETUP_VERSION_RETRY_MS, [this]() {
+    this->setup_version_attempts_++;
+
+    if (this->dfu_get_version_()) {
+      if (this->setup_version_attempts_ > 1) {
+        ESP_LOGI(TAG, "XVF3800 control channel up after %u attempts", this->setup_version_attempts_);
+      }
+      if (!this->versions_match_() && this->firmware_bin_is_valid_()) {
+        if (this->setup_version_attempts_ > SETUP_VERSION_PROCEED_ATTEMPTS) {
+          // Boot has already moved on without us; starting a DFU now would share
+          // the bus with everything else that just started. Pick it up on the
+          // next boot instead.
+          ESP_LOGW(TAG, "XMOS firmware %u.%u.%u found after boot, expected %u.%u.%u; reboot to update",
+                   this->firmware_version_major_, this->firmware_version_minor_, this->firmware_version_patch_,
+                   this->firmware_bin_version_major_, this->firmware_bin_version_minor_,
+                   this->firmware_bin_version_patch_);
+        } else {
+          ESP_LOGW(TAG, "Expected XMOS version: %u.%u.%u; found: %u.%u.%u. Updating...",
+                   this->firmware_bin_version_major_, this->firmware_bin_version_minor_,
+                   this->firmware_bin_version_patch_, this->firmware_version_major_, this->firmware_version_minor_,
+                   this->firmware_version_patch_);
+          this->start_dfu_update();
+        }
+      }
+      return;
     }
+
+    if (this->setup_version_attempts_ >= SETUP_VERSION_MAX_ATTEMPTS) {
+      ESP_LOGE(TAG, "Communication with Respeaker XVF3800 failed after %u attempts", this->setup_version_attempts_);
+      this->mark_failed();
+      return;
+    }
+
+    ESP_LOGW(TAG, "XVF3800 version read failed (attempt %u/%u); retrying in %ums", this->setup_version_attempts_,
+             SETUP_VERSION_MAX_ATTEMPTS, (unsigned) SETUP_VERSION_RETRY_MS);
+    this->schedule_setup_version_check_();
   });
 }
 
