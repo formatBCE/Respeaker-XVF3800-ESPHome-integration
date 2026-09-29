@@ -32,6 +32,16 @@ static const uint8_t DFU_COMMAND_READ_BIT = 0x80;
 static const uint16_t DFU_TIMEOUT_MS = 4000;
 static const uint16_t MAX_XFER = 128;  // maximum number of bytes we can transfer per block
 
+// The XMOS is in its own power domain and routinely does not answer I2C for the
+// first few hundred ms after a cold power-on, so the version read retries
+// instead of failing on the first NAK. can_proceed() only blocks boot for the
+// first SETUP_VERSION_PROCEED_ATTEMPTS of these; later attempts keep polling
+// in the background so a genuinely dead chip is still detected and failed.
+static const uint8_t SETUP_VERSION_MAX_ATTEMPTS = 10;
+static const uint32_t SETUP_VERSION_RETRY_MS = 1500;
+// ~3 s of boot blocking (SETUP_VERSION_PROCEED_ATTEMPTS * SETUP_VERSION_RETRY_MS).
+static const uint8_t SETUP_VERSION_PROCEED_ATTEMPTS = 2;
+
 // Original XVF3800 constants
 const uint8_t GPO_SERVICER_RESID = 20;
 const uint8_t GPO_SERVICER_RESID_GPO_READ_VALUES = 0;
@@ -187,8 +197,15 @@ class LEDBeamSensor : public sensor::Sensor, public PollingComponent {
 class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
  public:
   void setup() override;
+  // Blocks boot while the XMOS version is unknown, for at most
+  // SETUP_VERSION_PROCEED_ATTEMPTS reads. Once the version is known, a pending
+  // update runs to completion before boot continues.
   bool can_proceed() override {
-    return this->is_failed() || (this->version_read_() && (this->versions_match_() || !this->firmware_bin_is_valid_()));
+    if (this->is_failed())
+      return true;
+    if (this->version_read_())
+      return this->versions_match_() || !this->firmware_bin_is_valid_();
+    return this->setup_version_attempts_ >= SETUP_VERSION_PROCEED_ATTEMPTS;
   }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE - 1; }
@@ -263,6 +280,9 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   bool dfu_reboot_();
   bool dfu_set_alternate_();
   bool dfu_check_if_ready_();
+
+  void schedule_setup_version_check_();
+  uint8_t setup_version_attempts_{0};
 
   GPIOPin *reset_pin_{nullptr};
   #ifdef USE_BINARY_SENSOR
