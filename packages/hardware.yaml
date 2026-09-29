@@ -136,3 +136,51 @@ audio_dac:
   - platform: aic3104
     id: aic3104_dac
     i2c_id: internal_i2c
+
+number:
+  # Gain on the ASR output. It always affects wake word; it affects STT only
+  # when the route sends the ASR output to STT.
+  - platform: template
+    name: "ASR output gain"
+    id: asr_out_gain
+    optimistic: true
+    restore_value: yes
+    initial_value: 1.0
+    min_value: 1.0
+    max_value: 8.0
+    step: 0.1
+    entity_category: config
+    icon: "mdi:microphone-message"
+    on_value:
+      - lambda: id(respeaker).set_asr_out_gain(x);
+  # Maximum gain of the comms path's AGC. The comms output feeds STT on the
+  # default route, so this raises STT there; it does not affect the ASR output.
+  - platform: template
+    name: "AGC max gain (comms)"
+    id: agc_max_gain
+    optimistic: true
+    restore_value: yes
+    initial_value: 32.0
+    min_value: 1.0
+    max_value: 125.0
+    step: 1
+    entity_category: config
+    icon: "mdi:auto-fix"
+    on_value:
+      - lambda: id(respeaker).set_agc_max_gain(x);
+
+select:
+  # channel 0 -> STT, channel 1 -> micro_wake_word.
+  - platform: template
+    name: "DSP route"
+    id: dsp_route
+    optimistic: true
+    restore_value: yes
+    initial_option: "Comms to STT, ASR to wake word"
+    entity_category: config
+    icon: "mdi:call-split"
+    options:
+      - "ASR to STT and wake word"
+      - "Comms to STT, ASR to wake word"
+    on_value:
+      - lambda: id(respeaker).set_asr_route(i == 0);

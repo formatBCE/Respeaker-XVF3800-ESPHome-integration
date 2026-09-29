@@ -36,6 +36,8 @@ void RespeakerXVF3800::setup() {
                this->firmware_bin_version_minor_, this->firmware_bin_version_patch_, this->firmware_version_major_,
                this->firmware_version_minor_, this->firmware_version_patch_);
       this->start_dfu_update();
+    } else {
+      this->apply_audio_tuning_();
     }
   });
 }
@@ -201,6 +203,8 @@ RespeakerXVF3800UpdaterStatus RespeakerXVF3800::dfu_update_send_block_() {
           return UPDATE_FAILED;
         }
         ESP_LOGI(TAG, "Update complete");
+        // The XMOS rebooted with default settings, so re-apply the tuning.
+        this->apply_audio_tuning_();
 #ifdef USE_RESPEAKER_XVF3800_STATE_CALLBACK
         this->state_callback_.call(DFU_COMPLETE, 100.0f, UPDATE_OK);
 #endif
@@ -547,6 +551,57 @@ std::string RespeakerXVF3800::read_dfu_version() {
     }
   }
   return "Unknown";
+}
+
+void RespeakerXVF3800::set_asr_route(bool asr_route) {
+  this->asr_route_ = asr_route;
+  if (this->tuning_applied_)
+    this->apply_audio_tuning_();
+}
+
+void RespeakerXVF3800::set_asr_out_gain(float gain) {
+  this->asr_out_gain_ = gain;
+  if (this->tuning_applied_)
+    this->write_asr_out_gain_();
+}
+
+void RespeakerXVF3800::set_agc_max_gain(float gain) {
+  this->agc_max_gain_ = gain;
+  if (this->tuning_applied_)
+    this->write_agc_max_gain_();
+}
+
+void RespeakerXVF3800::write_asr_out_gain_() {
+  uint8_t gain[4];
+  memcpy(gain, &this->asr_out_gain_, sizeof(gain));
+  this->xmos_write_bytes(AEC_SERVICER_RESID, AEC_ASROUTGAIN_CMD, gain, sizeof(gain));
+}
+
+void RespeakerXVF3800::write_agc_max_gain_() {
+  uint8_t gain[4];
+  memcpy(gain, &this->agc_max_gain_, sizeof(gain));
+  this->xmos_write_bytes(PP_SERVICER_RESID, PP_AGCMAXGAIN_CMD, gain, sizeof(gain));
+}
+
+void RespeakerXVF3800::apply_audio_tuning_() {
+  // ASR route: both slots get the ASR output (7,3). Stock: comms (8,0) on STT.
+  const uint8_t l_cat = this->asr_route_ ? 7 : 8;
+  const uint8_t l_src = this->asr_route_ ? 3 : 0;
+  const uint8_t l[2] = {l_cat, l_src};
+  const uint8_t r[2] = {7, 3};
+
+  // Category 7 is the ASR beam only while this is 1; otherwise (7,3) is mic 3's residual.
+  const uint8_t asr_on[4] = {0x01, 0x00, 0x00, 0x00};  // int32 LE
+  this->xmos_write_bytes(AEC_SERVICER_RESID, AEC_ASROUTONOFF_CMD, asr_on, sizeof(asr_on));
+
+  this->xmos_write_bytes(AUDIO_MGR_SERVICER_RESID, AUDIO_MGR_OP_L_CMD, l, sizeof(l));
+  this->xmos_write_bytes(AUDIO_MGR_SERVICER_RESID, AUDIO_MGR_OP_R_CMD, r, sizeof(r));
+
+  this->write_asr_out_gain_();
+  this->write_agc_max_gain_();
+  this->tuning_applied_ = true;
+  ESP_LOGI(TAG, "Audio tuning sent: route=%s, ASROUTGAIN=%.2f, AGCMAXGAIN=%.1f",
+           this->asr_route_ ? "ASR" : "comms", this->asr_out_gain_, this->agc_max_gain_);
 }
 
 // =========================================================================

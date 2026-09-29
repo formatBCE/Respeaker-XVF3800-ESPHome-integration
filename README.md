@@ -31,6 +31,9 @@ The device gives these entities to Home Assistant:
 | Alarm time | datetime | Sets the alarm time |
 | Alarm action | select | Selects what the alarm does |
 | Wake word sensitivity | select | Sets the wake word threshold |
+| DSP route | select | Chooses what each DSP output channel feeds |
+| ASR output gain | number | Gain on the ASR output (wake word; STT on the ASR route) |
+| AGC max gain (comms) | number | Maximum AGC gain of the comms output (STT on the default route) |
 | LED Ring Color Preset | select | Selects the LED ring colour |
 | LED Ring | light | Sets the LED ring colour, the brightness and the idle effect |
 | Firmware Version | text sensor | Shows the XMOS DSP firmware version |
@@ -46,7 +49,7 @@ The **LED Ring** light controls the 12-LED ring. Read
 
 ## Requirements
 
-- ESPHome **2026.6.0** or later.
+- ESPHome **2026.9.0** or later.
 - Home Assistant with the ESPHome integration.
 - A reSpeaker XVF3800 USB 4-Mic Array board.
 - A USB-C cable and a computer that can flash the board.
@@ -263,6 +266,43 @@ To change the firmware version, change three things together:
 3. The `md5` value in `packages/hardware.yaml`.
 
 The build fails if the MD5 sum does not agree with the file.
+
+---
+
+## Audio
+
+The XMOS DSP outputs two processed channels over I2S. ESPHome reads one for the
+voice assistant (speech to text) and one for `micro_wake_word`. Both taps are
+processed, but differently: the **comms** tap is the auto-select beam with noise
+suppression and adaptive AGC, while the **ASR** tap is tuned for speech
+recognition with a fixed gain. The **DSP route** select sets what each channel
+carries:
+
+| Option | STT channel | Wake word channel |
+| --- | --- | --- |
+| Comms to STT, ASR to wake word (default) | Comms output | ASR output |
+| ASR to STT and wake word | ASR output | ASR output |
+
+By default the stock route is kept: the **comms** output — the auto-select beam
+with noise suppression and adaptive AGC — feeds STT, and the **ASR** output feeds
+wake word. Selecting **ASR to STT and wake word** routes both consumers to the
+ASR output instead; use it when far-field STT needs the recognition-tuned tap.
+
+The two gain numbers tune different taps:
+
+- **ASR output gain** (default 1.0) sets the level of the ASR output. It always
+  affects the wake word, and affects STT only when the route sends the ASR
+  output to STT.
+- **AGC max gain (comms)** (default 32) sets the maximum gain of the comms path's
+  AGC. The comms output feeds STT on the default route, so it raises STT there;
+  it does not affect the ASR output.
+
+Raise them until far-field speech improves, but stop before close speech clips.
+
+The XMOS resets these parameters on power-up. The `respeaker_xvf3800` component
+applies the route and the two gains after the version read, and applies a change
+as soon as you set it. Home Assistant saves the route and both numbers and
+restores them at the next boot.
 
 ---
 
