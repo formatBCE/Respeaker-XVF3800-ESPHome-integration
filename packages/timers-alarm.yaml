@@ -57,8 +57,9 @@ datetime:
     internal: false
     set_action:
       then:
+        # Setting a new time abandons the old alarm, so abandon its snooze too.
+        - script.stop: snooze_timer
         - switch.turn_on: alarm_on
-
 switch:
   # Internal switch to track when a timer is ringing on the device.
   - platform: template
@@ -69,6 +70,8 @@ switch:
     on_turn_off:
       # Disable stop wake word
       - micro_wake_word.disable_model: stop
+      # Disable snooze wake word
+      - micro_wake_word.disable_model: snooze
       - script.execute: disable_repeat
       # Stop any current announcement (ie: stop the timer ring mid playback)
       - if:
@@ -94,6 +97,12 @@ switch:
           duration: 0.0s
       # Enable stop wake word
       - micro_wake_word.enable_model: stop
+      # Enable snooze wake word, if the user wants it
+      - if:
+          condition:
+            switch.is_on: snooze_enabled
+          then:
+            - micro_wake_word.enable_model: snooze
       # Ring timer
       - script.execute: ring_timer
       # Refresh LED
@@ -108,7 +117,45 @@ switch:
     id: alarm_on
     icon: mdi:bell-badge
     name: "Alarm on"
+    # Cancelling the alarm cancels any snooze counting down for it.
+    on_turn_off:
+      - script.stop: snooze_timer
+      
+  # Defines if snooze is active
+  - platform: template
+    id: snooze_enabled
+    name: "Snooze enabled"
+    icon: mdi:alarm-snooze
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    on_turn_off:
+      - script.stop: snooze_timer
 
+number:
+  # How long "Snooze" defers the ring. Nine minutes because that is what
+  # bedside clocks have done since the 1950s.
+  - platform: template
+    id: snooze_minutes
+    name: Snooze duration
+    icon: mdi:alarm-snooze
+    optimistic: true
+    restore_value: true
+    initial_value: 9
+    min_value: 1
+    max_value: 60
+    step: 1
+    unit_of_measurement: min
+    mode: box
+
+binary_sensor:
+  # Gives HA visibility of a snooze that is counting down, since no HA-side
+  # timer exists during the snooze window.
+  - platform: template
+    id: snooze_pending
+    name: Snooze pending
+    icon: mdi:alarm-snooze
+    lambda: 'return id(snooze_timer).is_running();'
+    
 sensor:
   - platform: template
     id: next_timer
@@ -148,7 +195,12 @@ select:
             id(saved_alarm_action) = x;
 
 script:
-
+  - id: snooze_timer
+    mode: restart
+    then:
+      - delay: !lambda return (uint32_t) (id(snooze_minutes).state * 60000);
+      - switch.turn_on: timer_ringing
+    
   # Script executed when the timer is ringing, to playback sounds.
   - id: ring_timer
     then:

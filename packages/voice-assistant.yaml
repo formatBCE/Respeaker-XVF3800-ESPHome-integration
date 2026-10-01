@@ -186,6 +186,10 @@ micro_wake_word:
     - model: https://github.com/OHF-Voice/micro-wake-word/releases/download/stop/stop.json
       id: stop
       internal: true
+    # "Snooze" - enabled only while a timer is ringing (see timers-alarm.yaml)
+    - model: https://raw.githubusercontent.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/refs/heads/main/microwakeword/models/snooze.json
+      id: snooze
+      internal: true
   vad:
     probability_cutoff: 0.05
   on_wake_word_detected:
@@ -197,50 +201,120 @@ micro_wake_word:
           - script.execute:
               id: send_wake_word_event
               wake_word: !lambda return wake_word;
-          # If a timer is ringing: Stop it, do not start the voice assistant (We can stop timer from voice!)
+
+          # "Stop": interrupt only - never starts the voice assistant.
           - if:
               condition:
-                switch.is_on: timer_ringing
+                lambda: 'return wake_word == "Stop";'
               then:
-                - switch.turn_off: timer_ringing
-              # Stop voice assistant if running
-              else:
+                # If a timer is ringing: stop it and go no further
                 - if:
                     condition:
-                      voice_assistant.is_running:
+                      switch.is_on: timer_ringing
                     then:
-                      voice_assistant.stop:
-                    # Stop any other media player announcement
+                      - switch.turn_off: timer_ringing
+                      # A pending snooze is cancelled too - "Stop" means stop
+                      - script.stop: snooze_timer
+                    # Otherwise stop the voice assistant if running
                     else:
                       - if:
                           condition:
-                            media_player.is_announcing:
-                              id: external_media_player
+                            voice_assistant.is_running:
                           then:
-                            - media_player.stop:
-                                announcement: true
-                                id: external_media_player
-                          # Start the voice assistant and play the wake sound, if enabled
+                            - voice_assistant.stop:
+                          # Or stop any other media player announcement
                           else:
                             - if:
                                 condition:
-                                  switch.is_on: wake_sound
+                                  media_player.is_announcing:
+                                    id: external_media_player
                                 then:
-                                  - script.execute:
-                                      id: play_sound
-                                      priority: true
-                                      sound_file: "wake_word_triggered_sound"
-                                  - delay: 300ms
-                            - voice_assistant.start:
-                                wake_word: !lambda return wake_word;
-                            # Pin the AEC beam to the wake-word direction before any
-                            # other sound source can steal it. Gated by the user-facing
-                            # switch so the feature is opt-in.
+                                  - media_player.stop:
+                                      announcement: true
+                                      id: external_media_player
+
+          # "Snooze": silence the ring, then ring again after snooze_minutes.
+          # No guard on snooze_enabled is needed - when that switch is off the
+          # model is never enabled, so this phrase cannot fire.
+          - if:
+              condition:
+                lambda: 'return wake_word == "Snooze";'
+              then:
+                - if:
+                    condition:
+                      switch.is_on: timer_ringing
+                    then:
+                      - switch.turn_off: timer_ringing
+                      - script.execute: snooze_timer
+
+          # Any other wake word: cancels a ringing timer or alarm as before,
+          # and then opens the assistant so the same wake word can carry an
+          # instruction ("Hey Pondy, turn on the lights").
+          #
+          # Cancelling first is load-bearing: timer_ringing's on_turn_off runs
+          # disable_repeat, which clears repeat_one on the announcement
+          # pipeline. Start a pipeline while that flag is still set and the
+          # assistant's TTS reply inherits it and loops forever.
+          - if:
+              condition:
+                lambda: 'return wake_word != "Stop" && wake_word != "Snooze";'
+              then:
+                - if:
+                    condition:
+                      switch.is_on: timer_ringing
+                    then:
+                      - switch.turn_off: timer_ringing
+                      - script.stop: snooze_timer
+                      # Give the ring audio a moment to tear down. Going
+                      # straight to voice_assistant.start also skips the
+                      # is_announcing check below, which would otherwise catch
+                      # the ring still stopping and swallow the detection.
+                      - delay: 300ms
+                      - voice_assistant.start:
+                          wake_word: !lambda return wake_word;
+                      - if:
+                          condition:
+                            switch.is_on: beam_lock_enabled
+                          then:
+                            - lambda: id(respeaker).lock_beam();
+                    else:
+                      # Stop voice assistant if running
+                      - if:
+                          condition:
+                            voice_assistant.is_running:
+                          then:
+                            - voice_assistant.stop:
+                          # Stop any other media player announcement
+                          else:
                             - if:
                                 condition:
-                                  switch.is_on: beam_lock_enabled
+                                  media_player.is_announcing:
+                                    id: external_media_player
                                 then:
-                                  - lambda: id(respeaker).lock_beam();
+                                  - media_player.stop:
+                                      announcement: true
+                                      id: external_media_player
+                                # Start the voice assistant and play the wake sound, if enabled
+                                else:
+                                  - if:
+                                      condition:
+                                        switch.is_on: wake_sound
+                                      then:
+                                        - script.execute:
+                                            id: play_sound
+                                            priority: true
+                                            sound_file: "wake_word_triggered_sound"
+                                        - delay: 300ms
+                                  - voice_assistant.start:
+                                      wake_word: !lambda return wake_word;
+                                  # Pin the AEC beam to the wake-word direction before any
+                                  # other sound source can steal it. Gated by the user-facing
+                                  # switch so the feature is opt-in.
+                                  - if:
+                                      condition:
+                                        switch.is_on: beam_lock_enabled
+                                      then:
+                                        - lambda: id(respeaker).lock_beam();
 
 voice_assistant:
   id: va
