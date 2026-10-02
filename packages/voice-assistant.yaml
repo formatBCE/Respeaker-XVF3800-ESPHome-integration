@@ -202,6 +202,9 @@ micro_wake_word:
               condition:
                 switch.is_on: timer_ringing
               then:
+                - logger.log:
+                    level: INFO
+                    format: "Wake word ignored: stopping the ringing timer"
                 - switch.turn_off: timer_ringing
               # Stop voice assistant if running
               else:
@@ -209,7 +212,10 @@ micro_wake_word:
                     condition:
                       voice_assistant.is_running:
                     then:
-                      voice_assistant.stop:
+                      - logger.log:
+                          level: INFO
+                          format: "Wake word ignored: stopping the running voice assistant"
+                      - voice_assistant.stop:
                     # Stop any other media player announcement
                     else:
                       - if:
@@ -217,6 +223,9 @@ micro_wake_word:
                             media_player.is_announcing:
                               id: external_media_player
                           then:
+                            - logger.log:
+                                level: INFO
+                                format: "Wake word ignored: stopping the announcement"
                             - media_player.stop:
                                 announcement: true
                                 id: external_media_player
@@ -241,6 +250,10 @@ micro_wake_word:
                                   switch.is_on: beam_lock_enabled
                                 then:
                                   - lambda: id(respeaker).lock_beam();
+        else:
+          - logger.log:
+              level: INFO
+              format: "Wake word ignored: microphone is muted"
 
 voice_assistant:
   id: va
@@ -404,6 +417,24 @@ voice_assistant:
         if (id(current_led_effect) == "timer_tick") {
           id(control_leds_timer_ticking).execute();
         }
+
+interval:
+  # micro_wake_word stops for good after an inference or allocation error, and
+  # only on_client_connected starts it. Restart it so the device is not left deaf.
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            and:
+              - voice_assistant.connected:
+              - lambda: return !id(init_in_progress);
+              - not:
+                  micro_wake_word.is_running:
+          then:
+            - logger.log:
+                level: WARN
+                format: "Wake word detection stopped, restarting it"
+            - micro_wake_word.start:
 
 script:
   # Script executed when we want to play sounds on the device.
