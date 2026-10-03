@@ -49,6 +49,18 @@ const uint8_t AEC_AZIMUTH_VALUES_CMD = 75;
 const uint8_t AEC_FIXEDBEAMS_ONOFF_CMD = 37;
 const uint8_t AEC_FIXEDBEAMS_AZIMUTH_CMD = 81;
 
+// Audio tuning commands (resid, cmd) from Respeaker xvf_host.py.
+// AUDIO_MGR_OP_L/R take (category, source): 6 = processed, 7 = AEC residual or
+// ASR, 8 = user chosen (a copy of 6,3). See the XMOS output-selection table:
+// https://www.xmos.com/documentation/XM-014888-PC/html/modules/fwk_xvf/doc/user_guide/03_using_the_host_application.html#output-selection
+const uint8_t AUDIO_MGR_SERVICER_RESID = 35;
+const uint8_t AUDIO_MGR_OP_L_CMD = 15;
+const uint8_t AUDIO_MGR_OP_R_CMD = 19;
+const uint8_t AEC_ASROUTONOFF_CMD = 35;  // 1 = category 7 carries ASR beams, 0 = AEC residuals
+const uint8_t AEC_ASROUTGAIN_CMD = 36;
+const uint8_t PP_SERVICER_RESID = 17;
+const uint8_t PP_AGCMAXGAIN_CMD = 11;  // comms path only; does not affect the ASR output
+
 const uint8_t RESID_LED = 0x0C;
 const uint8_t RESID_DFU_VERSION = 0xFE;
 const uint8_t I2C_COMMAND_READ_BIT = 0x80;
@@ -248,6 +260,10 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   void set_dfu_version_sensor(DFUVersionTextSensor *dfu_version_sensor) { dfu_version_sensor_ = dfu_version_sensor; }
   void set_led_beam_sensor(LEDBeamSensor *led_beam_sensor) { led_beam_sensor_ = led_beam_sensor; }
 
+  void set_asr_route(bool asr_route);
+  void set_asr_out_gain(float gain);
+  void set_agc_max_gain(float gain);
+
  protected:
 #ifdef USE_RESPEAKER_XVF3800_STATE_CALLBACK
   CallbackManager<void(DFUAutomationState, float, RespeakerXVF3800UpdaterStatus)> state_callback_{};
@@ -311,6 +327,15 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   // Last frame written by set_led_ring(), so an unchanged frame skips the bus.
   uint32_t last_led_frame_[12]{};
   bool led_frame_valid_{false};
+
+  // The chip resets these on power-up; they are (re)applied after boot.
+  bool asr_route_{false};
+  float asr_out_gain_{1.0f};
+  float agc_max_gain_{32.0f};
+  bool tuning_applied_{false};
+  void apply_audio_tuning_();
+  void write_asr_out_gain_();
+  void write_agc_max_gain_();
 
   // Helper method for XMOS communication
   void xmos_write_bytes(uint8_t resid, uint8_t cmd, const uint8_t *value, uint8_t write_byte_num);
