@@ -470,6 +470,7 @@ script:
           condition:
             media_player.is_announcing:
               id: external_media_player
+          timeout: 5s
       - delay: 1s
       # Enable stop wake word
       - if:
