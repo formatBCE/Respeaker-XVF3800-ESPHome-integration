@@ -495,6 +495,8 @@ script:
           bool new_timer_ringing = id(timer_ringing).state;
           bool improv_ble = id(improv_ble_in_progress);
           bool init_progress = id(init_in_progress);
+          id(check_if_timers_active).execute();
+          bool timer_active = id(is_timer_active);
 
           // Only update if something actually changed
           bool needs_update = (
@@ -503,6 +505,7 @@ script:
             api_connected != last_api_connected ||
             voice_phase != last_voice_phase ||
             new_timer_ringing != last_timer_ringing ||
+            timer_active != last_timer_active ||
             improv_ble != last_improv_ble ||
             init_progress != last_init_progress
           );
@@ -520,6 +523,7 @@ script:
           last_api_connected = api_connected;
           last_voice_phase = voice_phase;
           last_timer_ringing = new_timer_ringing;
+          last_timer_active = timer_active;
           last_improv_ble = improv_ble;
           last_init_progress = init_progress;
 
@@ -528,9 +532,7 @@ script:
             return;
           }
 
-          // Only check timers if we need to
-          id(check_if_timers_active).execute();
-          if (id(is_timer_active)){
+          if (timer_active) {
             id(fetch_first_active_timer).execute();
           }
 
@@ -555,7 +557,7 @@ script:
             id(control_leds_voice_assistant_error_phase).execute();
           } else if (voice_phase == ${voice_assist_not_ready_phase_id}) {
             id(control_leds_voice_assistant_not_ready_phase).execute();
-          } else if (id(is_timer_active)) {
+          } else if (timer_active) {
             id(control_leds_timer_ticking).execute();
           } else if (voice_phase == ${voice_assist_idle_phase_id}) {
             id(control_leds_voice_assistant_idle_phase).execute();
