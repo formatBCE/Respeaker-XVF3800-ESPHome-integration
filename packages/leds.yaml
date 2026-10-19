@@ -12,6 +12,10 @@
 # the C++ component.
 # =============================================================================
 
+substitutions:
+  # Ring positions that turn red while the microphone is muted.
+  mic_mute_leds: "1, 4, 7, 10"
+
 globals:
   - id: user_led_ring_color_r
     type: float
@@ -114,6 +118,8 @@ interval:
             id(update_timer_tick_effect).execute();
           } else if (effect == "led_beam") {
             id(update_led_beam_effect).execute();
+          } else if (effect == "muted") {
+            id(update_muted_effect).execute();
           }
 
 script:
@@ -162,6 +168,28 @@ script:
 
           uint32_t colors[12];
           for (int i = 0; i < 12; i++) colors[i] = current_color;
+          id(respeaker).set_led_ring(colors);
+
+  # Muted microphone. Steady ring if the "LED Ring" light is on, else dark, and
+  # red at the ${mic_mute_leds} positions. The same as "Muted or Silent" on the
+  # Voice PE.
+  - id: update_muted_effect
+    then:
+      - lambda: |-
+          constexpr int MUTE_LEDS[] = {${mic_mute_leds}};
+          uint32_t colors[12] = {0};
+
+          if (id(led_ring_light).current_values.is_on()) {
+            float brightness = id(user_led_ring_brightness) * id(effect_brightness);
+            uint8_t r = (uint8_t)(id(effect_color_r) * brightness);
+            uint8_t g = (uint8_t)(id(effect_color_g) * brightness);
+            uint8_t b = (uint8_t)(id(effect_color_b) * brightness);
+            uint32_t current_color = (r << 16) | (g << 8) | b;
+            for (int i = 0; i < 12; i++) colors[i] = current_color;
+          }
+
+          uint8_t red = (uint8_t)(255.0f * std::max(id(user_led_ring_brightness), 0.2f));
+          for (int i : MUTE_LEDS) colors[i] = (uint32_t) red << 16;
           id(respeaker).set_led_ring(colors);
 
   # Individual update scripts for each animated effect
@@ -374,6 +402,13 @@ script:
               colors[i] = (r << 16) | (g << 8) | b;
             }
           }
+
+          // A running timer hides the muted state, so mark the muted microphone here too
+          if (id(mic_mute_switch).state) {
+            constexpr int MUTE_LEDS[] = {${mic_mute_leds}};
+            uint8_t red = (uint8_t)(255.0f * std::max(id(user_led_ring_brightness), 0.2f));
+            for (int i : MUTE_LEDS) colors[i] = (uint32_t) red << 16;
+          }
           id(respeaker).set_led_ring(colors);
 
   - id: update_volume_display_effect
@@ -487,6 +522,7 @@ script:
           static bool last_timer_active = false;
           static bool last_improv_ble = false;
           static bool last_init_progress = false;
+          static bool last_mic_muted = false;
 
           bool respeaker_failed = id(respeaker).is_failed();
           bool wifi_connected = id(wifi_id).is_connected();
@@ -497,6 +533,7 @@ script:
           bool init_progress = id(init_in_progress);
           id(check_if_timers_active).execute();
           bool timer_active = id(is_timer_active);
+          bool mic_muted = id(mic_mute_switch).state;
 
           // Only update if something actually changed
           bool needs_update = (
@@ -507,7 +544,8 @@ script:
             new_timer_ringing != last_timer_ringing ||
             timer_active != last_timer_active ||
             improv_ble != last_improv_ble ||
-            init_progress != last_init_progress
+            init_progress != last_init_progress ||
+            mic_muted != last_mic_muted
           );
 
           // A light change moves none of the states above, so the light sets an
@@ -526,6 +564,7 @@ script:
           last_timer_active = timer_active;
           last_improv_ble = improv_ble;
           last_init_progress = init_progress;
+          last_mic_muted = mic_muted;
 
           if (respeaker_failed) {
             id(control_leds_respeaker_startup_failed).execute();
@@ -559,6 +598,8 @@ script:
             id(control_leds_voice_assistant_not_ready_phase).execute();
           } else if (timer_active) {
             id(control_leds_timer_ticking).execute();
+          } else if (mic_muted) {
+            id(control_leds_muted).execute();
           } else if (voice_phase == ${voice_assist_idle_phase_id}) {
             id(control_leds_voice_assistant_idle_phase).execute();
           }
@@ -734,6 +775,18 @@ script:
           b: !lambda return id(user_led_ring_color_b);
           speed: 1.0
           brightness: 0.7
+
+  # Script executed when the microphone is muted
+  - id: control_leds_muted
+    then:
+      - script.execute:
+          id: led_set_effect
+          effect: "muted"
+          r: !lambda return id(user_led_ring_color_r);
+          g: !lambda return id(user_led_ring_color_g);
+          b: !lambda return id(user_led_ring_color_b);
+          speed: 0.0
+          brightness: 1.0
 
   # Script executed when the voice assistant is idle (waiting for a wake word).
   # The "LED Ring" light owns this state. If the light is off, the ring stays

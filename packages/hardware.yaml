@@ -104,6 +104,7 @@ respeaker_xvf3800:
                 id: play_sound
                 priority: false
                 sound_file: "mute_switch_on_sound"
+      - script.execute: control_leds
     on_turn_off:
       - if:
           condition:
@@ -115,6 +116,7 @@ respeaker_xvf3800:
                 id: play_sound
                 priority: false
                 sound_file: "mute_switch_off_sound"
+      - script.execute: control_leds
   dfu_version:
     name: "Firmware Version"
     update_interval: 120s
