@@ -412,9 +412,9 @@ bool RespeakerXVF3800::read_mute_button(bool &pressed) {
     return false;
   }
 
-  uint32_t active;
-  memcpy(&active, &response[1], sizeof(active));
-  pressed = (active & GPI_MUTE_BUTTON_BIT) != 0;
+  uint32_t levels;
+  memcpy(&levels, &response[1], sizeof(levels));
+  pressed = (levels & GPI_MUTE_BUTTON_BIT) == 0;  // the bit is low while pressed
   return true;
 }
 

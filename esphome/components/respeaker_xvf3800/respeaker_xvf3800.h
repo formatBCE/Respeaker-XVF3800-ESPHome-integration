@@ -65,7 +65,9 @@ const uint8_t PP_SERVICER_RESID = 17;
 const uint8_t PP_AGCMAXGAIN_CMD = 11;  // comms path only; does not affect the ASR output
 
 // IO config servicer (GPI inputs). Verified against Respeaker xvf_host.py.
-// GPI_VALUE_ALL : (36, 6, 1, ro, uint32) — active-state bitmap, bit 0 = onboard Mute button
+// GPI_VALUE_ALL : (36, 6, 1, ro, uint32) — bitmap, bit 0 = onboard Mute button.
+// xvf_host.py calls it active-referenced, but on firmware 1.0.9 bit 0 reads 1
+// while released and 0 while pressed (measured on the device).
 const uint8_t IO_CONFIG_SERVICER_RESID = 36;
 const uint8_t IO_CONFIG_GPI_VALUE_ALL_CMD = 6;
 const uint32_t GPI_MUTE_BUTTON_BIT = 1 << 0;
