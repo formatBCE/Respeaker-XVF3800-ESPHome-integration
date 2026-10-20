@@ -12,14 +12,10 @@ substitutions:
   friendly_name: reSpeaker XVF3800
 
   # Release of this firmware. An adopted device imports the same release.
-  respeaker_ref: 2026.9.1
+  respeaker_ref: 2026.10.0
 
 packages:
-  base: !include ../packages/base.yaml
-  hardware: !include ../packages/hardware.yaml
-  voice_assistant: !include ../packages/voice-assistant.yaml
-  leds: !include ../packages/leds.yaml
-  timers_alarm: !include ../packages/timers-alarm.yaml
+  respeaker_xvf: !include common/respeaker-xvf-satellite-base.yaml
   # BLE and Wi-Fi share the radio. Disable BLE while Wi-Fi is up, and wait for
   # that before the voice assistant starts.
   va_connected_wait_for_ble:
@@ -37,7 +33,7 @@ esphome:
   name_add_mac_suffix: true
 
 dashboard_import:
-  package_import_url: github://formatBCE/Respeaker-XVF3800-ESPHome-integration/config/respeaker-xvf-satellite-factory.yaml@${respeaker_ref}
+  package_import_url: github://formatBCE/Respeaker-XVF3800-ESPHome-integration/config/common/respeaker-xvf-satellite-base.yaml@${respeaker_ref}
   import_full_config: false
 
 wifi:
@@ -50,7 +46,8 @@ ota:
   - platform: esphome
     id: ota_esphome
 
-# Commented out for auto-publishing. Uncomment if you build manually.
+# Commented out for auto-publishing: the release workflow builds this file with
+# ewt-gen, which adds these blocks. Uncomment them only for a manual build.
 
 # ota:
 #   - platform: http_request
@@ -62,7 +59,7 @@ ota:
 #   - platform: http_request
 #     name: Firmware Update
 #     update_interval: 30min
-#     source: <manifest URL>
+#     source: https://formatbce.github.io/Respeaker-XVF3800-ESPHome-integration/manifest.json
 
 improv_serial:
 

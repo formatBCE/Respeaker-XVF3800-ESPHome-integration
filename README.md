@@ -85,7 +85,7 @@ Create a file for your device. The packages give all the other configuration.
 substitutions:
   name: respeaker-xvf3800-assistant
   friendly_name: reSpeaker XVF3800 Assistant
-  respeaker_ref: 2026.9.1
+  respeaker_ref: 2026.10.0
 
 packages:
   respeaker:
@@ -133,21 +133,36 @@ framework. Later builds are much faster.
 Home Assistant finds the device automatically. Give it the API key from your
 `secrets.yaml` file.
 
-### Install without secrets
+### Install with the web installer
 
-`config/respeaker-xvf-satellite-factory.yaml` has no credentials. The device
-gets the Wi-Fi credentials through Improv over BLE or over USB serial.
+Use the web installer if you do not want to build the firmware. The firmware has
+no credentials. The device gets the Wi-Fi credentials through Improv over USB
+serial or over BLE.
 
-1. Build and flash the configuration with
-   `esphome run config/respeaker-xvf-satellite-factory.yaml`.
-2. In Home Assistant, add the device with the
-   [Improv via BLE](https://www.home-assistant.io/integrations/improv_ble/)
-   integration.
-3. When Home Assistant asks for authorization, push the **Mute** button.
+1. Open the [web installer](https://formatbce.github.io/Respeaker-XVF3800-ESPHome-integration/)
+   in Chrome or Edge on a computer.
+2. Connect the computer to the USB-C port of the XIAO ESP32-S3 board.
+3. Click **Connect**, and select the board.
+4. Install the firmware.
+5. Set the Wi-Fi credentials in the installer.
 
-The button also mutes the microphones. Push the button again to unmute them.
+As an alternative to step 5, add the device in Home Assistant with the
+[Improv via BLE](https://www.home-assistant.io/integrations/improv_ble/)
+integration. When Home Assistant asks for authorization, push the **Mute**
+button. The button also mutes the microphones. Push the button again to unmute
+them.
+
 After the Wi-Fi connection, the device stops BLE. If the device loses the Wi-Fi
 connection, BLE starts again.
+
+Home Assistant shows a firmware update when a new release is available. To
+change the configuration, adopt the device in the ESPHome dashboard. The
+dashboard imports `config/common/respeaker-xvf-satellite-base.yaml` at the
+release tag of the device.
+
+To build the same firmware yourself, run
+`esphome run config/respeaker-xvf-satellite-factory.yaml`. This build does not
+get updates from Home Assistant.
 
 ---
 

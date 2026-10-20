@@ -18,7 +18,7 @@ substitutions:
   # It selects the C++ components and the DFU firmware. Each release sets it to
   # its own tag, so a pinned package stays consistent. Set it to "main" to
   # follow the newest code.
-  respeaker_ref: 2026.9.1
+  respeaker_ref: 2026.10.0
   # Ref of the patched i2s_audio fork. The stock component does not work.
   i2s_audio_ref: respeaker_microphone
 
@@ -48,7 +48,7 @@ esphome:
   friendly_name: ${friendly_name}
   project:
     name: formatbce.Respeaker XVF3800 Satellite
-    version: 2026.9.1
+    version: 2026.10.0
   min_version: 2026.9.0
   on_boot:
     - priority: 375
