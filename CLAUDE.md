@@ -16,7 +16,7 @@ Layout:
 
 ## Commands
 
-There are no tests, no linters, and no CI. Everything goes through the ESPHome CLI:
+There are no tests and no linters. The only CI is `.github/workflows/release.yaml`, which tags releases. Everything goes through the ESPHome CLI:
 
 ```bash
 esphome config config/respeaker-xvf-satellite-example.yaml    # validate YAML + component schemas
@@ -50,7 +50,9 @@ Then `esphome config local/test-merge.yaml`. Relative-include resolution is the 
 
 To test **C++** edits, temporarily switch `external_components` in `packages/base.yaml` to `source: {type: local, path: esphome/components}`. Do not commit that switch.
 
-The refs are parameterised: `${respeaker_ref}` drives the packages, the C++ components, and the DFU firmware URL together. Keep them in lockstep.
+The refs are parameterised: `${respeaker_ref}` drives the packages, the C++ components, and the DFU firmware URL together. Keep them in lockstep. Its default in `packages/base.yaml` is the current release tag, not `main`. The `kenobi` model comes from Respeaker-Lite-ESPHome-integration at `${respeaker_lite_ref}` (a Lite release tag, set in `packages/voice-assistant.yaml`).
+
+Releases use plain CalVer tags without a `v`, for example `2026.9.1`. To release, set the new version in three places in one commit: `esphome.project.version` and the `respeaker_ref` default in `packages/base.yaml`, and `respeaker_ref` in `config/respeaker-xvf-satellite-example.yaml`. Push to `main`. `.github/workflows/release.yaml` checks the refs and the configuration at the commit, and creates the tag and a GitHub release. A push without a new version does nothing. Do not tag by hand.
 
 The config also pins a **fork** of ESPHome's `i2s_audio` (`formatBCE/esphome@respeaker_microphone`). The stock component does not work with this board.
 

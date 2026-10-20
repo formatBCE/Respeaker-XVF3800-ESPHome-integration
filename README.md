@@ -84,7 +84,7 @@ Create a file for your device. The packages give all the other configuration.
 substitutions:
   name: respeaker-xvf3800-assistant
   friendly_name: reSpeaker XVF3800 Assistant
-  respeaker_ref: main
+  respeaker_ref: 2026.9.1
 
 packages:
   respeaker:
@@ -144,7 +144,7 @@ substitution in a package.
 | --- | --- | --- |
 | `name` | `respeaker-xvf3800-assistant` | ESPHome node name |
 | `friendly_name` | `reSpeaker XVF3800 Assistant` | Display name |
-| `respeaker_ref` | `main` | Ref for the packages, the components, and the firmware |
+| `respeaker_ref` | the current release, for example `2026.9.1` | Release for the packages, the components, and the firmware |
 | `i2s_audio_ref` | `respeaker_microphone` | Ref for the patched `i2s_audio` fork |
 | `hidden_ssid` | `"false"` | Set this to `"true"` for a hidden network |
 | `log_level` | `INFO` | Logger level |
@@ -207,20 +207,25 @@ configuration.
 
 ---
 
-## Pin a version
+## Releases and updates
 
-`main` gets new commits at any time. Pin the device to one version for a stable
-build. Set `respeaker_ref` to a tag or a commit:
-
-```yaml
-substitutions:
-  respeaker_ref: 67f4afe
-```
+Each release has a tag, for example `2026.9.1`. The
+[tags page](https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/tags)
+shows all releases. The `respeaker_ref` substitution in your configuration
+selects the release.
 
 One substitution controls three things: the YAML packages, the C++ components,
-and the DSP firmware. So the YAML and the firmware always match. If you pin only
+and the DSP firmware. So the YAML and the firmware always match. Use
+`${respeaker_ref}` also as the `ref:` of the `packages:` block. If you pin only
 the `packages:` block, ESPHome takes the YAML from your tag but the C++ from
-`main`. That mismatch is difficult to find.
+another ref. That mismatch is difficult to find.
+
+To update the device:
+1. Set `respeaker_ref` to the tag of the new release.
+2. Install the configuration on the device again.
+
+Use `main` only to test new code. A change in `main` can break the build or the
+device. To get the newest code before a release, set `respeaker_ref` to `main`.
 
 **Note:** `esp32.framework.version` is `recommended`, so a new ESPHome release
 can still change the ESP-IDF version. A pinned `respeaker_ref` does not give a
