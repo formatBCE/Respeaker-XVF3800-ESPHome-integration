@@ -11,19 +11,21 @@ substitutions:
   # Release of Respeaker-Lite-ESPHome-integration that holds the kenobi wake
   # word model.
   respeaker_lite_ref: 2026.9.2
-  # Substitutions for audio files
-  mute_switch_on_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/mute_switch_on.flac
-  mute_switch_off_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/mute_switch_off.flac
-  timer_finished_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/timer_finished.flac
-  wake_word_triggered_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/wake_word_triggered.flac
+  # Substitutions for audio files. The built-in sounds are Ogg Opus copies of
+  # the Voice PE sounds in sounds/ (CC BY 4.0, see sounds/LICENSE.md), pinned
+  # with the rest of the repository by respeaker_ref.
+  mute_switch_on_sound_file: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/sounds/mute_switch_on.opus
+  mute_switch_off_sound_file: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/sounds/mute_switch_off.opus
+  timer_finished_sound_file: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/sounds/timer_finished.opus
+  wake_word_triggered_sound_file: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/sounds/wake_word_triggered.opus
   center_button_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_press.flac
   center_button_double_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_double_press.flac
   center_button_triple_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_triple_press.flac
   center_button_long_press_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/center_button_long_press.flac
-  factory_reset_initiated_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_initiated.mp3
-  factory_reset_cancelled_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_cancelled.mp3
-  factory_reset_confirmed_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/factory_reset_confirmed.mp3
-  error_cloud_expired_sound_file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/error_cloud_expired.mp3
+  factory_reset_initiated_sound_file: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/sounds/factory_reset_initiated.opus
+  factory_reset_cancelled_sound_file: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/sounds/factory_reset_cancelled.opus
+  factory_reset_confirmed_sound_file: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/sounds/factory_reset_confirmed.opus
+  error_cloud_expired_sound_file: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/sounds/error_cloud_expired.opus
 
 switch:
   # Mute Sound Switch.
@@ -96,6 +98,12 @@ audio_file:
     file: ${wake_word_triggered_sound_file}
   - id: error_cloud_expired
     file: ${error_cloud_expired_sound_file}
+  - id: factory_reset_initiated_sound
+    file: ${factory_reset_initiated_sound_file}
+  - id: factory_reset_cancelled_sound
+    file: ${factory_reset_cancelled_sound_file}
+  - id: factory_reset_confirmed_sound
+    file: ${factory_reset_confirmed_sound_file}
 
 media_source:
   - platform: audio_file

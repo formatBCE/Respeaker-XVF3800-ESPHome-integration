@@ -523,6 +523,7 @@ script:
           static bool last_improv_ble = false;
           static bool last_init_progress = false;
           static bool last_mic_muted = false;
+          static int last_reset_phase = 0;
 
           bool respeaker_failed = id(respeaker).is_failed();
           bool wifi_connected = id(wifi_id).is_connected();
@@ -534,6 +535,7 @@ script:
           id(check_if_timers_active).execute();
           bool timer_active = id(is_timer_active);
           bool mic_muted = id(mic_mute_switch).state;
+          int reset_phase = id(factory_reset_phase);
 
           // Only update if something actually changed
           bool needs_update = (
@@ -545,7 +547,8 @@ script:
             timer_active != last_timer_active ||
             improv_ble != last_improv_ble ||
             init_progress != last_init_progress ||
-            mic_muted != last_mic_muted
+            mic_muted != last_mic_muted ||
+            reset_phase != last_reset_phase
           );
 
           // A light change moves none of the states above, so the light sets an
@@ -565,9 +568,20 @@ script:
           last_improv_ble = improv_ble;
           last_init_progress = init_progress;
           last_mic_muted = mic_muted;
+          last_reset_phase = reset_phase;
 
           if (respeaker_failed) {
             id(control_leds_respeaker_startup_failed).execute();
+            return;
+          }
+
+          // A factory reset hold wins over every other state.
+          if (reset_phase == 2) {
+            id(control_leds_factory_reset_confirmed).execute();
+            return;
+          }
+          if (reset_phase == 1) {
+            id(control_leds_factory_reset_warning).execute();
             return;
           }
 
@@ -615,6 +629,30 @@ script:
           b: 0.0
           speed: 0.5
           brightness: 0.6
+
+  # Script executed from 10 s of a Mute button hold: factory reset warning
+  - id: control_leds_factory_reset_warning
+    then:
+      - script.execute:
+          id: led_set_effect
+          effect: "breathe"
+          r: 255.0
+          g: 100.0
+          b: 0.0
+          speed: 3.0
+          brightness: 0.8
+
+  # Script executed from 22 s of a Mute button hold: factory reset confirmed
+  - id: control_leds_factory_reset_confirmed
+    then:
+      - script.execute:
+          id: led_set_effect
+          effect: "solid"
+          r: 255.0
+          g: 0.0
+          b: 0.0
+          speed: 1.0
+          brightness: 1.0
 
   # Script executed during Improv BLE
   - id: control_leds_improv_ble_state
