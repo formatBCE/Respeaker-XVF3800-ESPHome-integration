@@ -133,6 +133,22 @@ framework. Later builds are much faster.
 Home Assistant finds the device automatically. Give it the API key from your
 `secrets.yaml` file.
 
+### Install without secrets
+
+`config/respeaker-xvf-satellite-factory.yaml` has no credentials. The device
+gets the Wi-Fi credentials through Improv over BLE or over USB serial.
+
+1. Build and flash the configuration with
+   `esphome run config/respeaker-xvf-satellite-factory.yaml`.
+2. In Home Assistant, add the device with the
+   [Improv via BLE](https://www.home-assistant.io/integrations/improv_ble/)
+   integration.
+3. When Home Assistant asks for authorization, push the **Mute** button.
+
+The button also mutes the microphones. Push the button again to unmute them.
+After the Wi-Fi connection, the device stops BLE. If the device loses the Wi-Fi
+connection, BLE starts again.
+
 ---
 
 ## Configuration
@@ -205,6 +221,29 @@ configuration.
 
 **Caution:** Do not delete a whole package file. Read
 [Package layout](#package-layout) first.
+
+---
+
+## Mute button
+
+When you push the **Mute** button, the DSP mutes or unmutes the microphones.
+The DSP does this itself, so the button works also if the ESP32-S3 stops.
+
+To reset the device to the factory settings:
+
+1. Push and hold the **Mute** button for 10 seconds. The device plays a warning
+   sound, and the LED ring pulses orange. The mute state goes back to the state
+   before the hold.
+2. Hold the button until the device plays a second sound and the LED ring
+   becomes red, at about 22 seconds.
+3. Release the button. The device erases its settings and restarts.
+
+To cancel the reset, release the button before the second sound. The device
+then plays a cancel sound, and the LED ring shows the usual state again.
+
+The reset erases the saved settings and the Wi-Fi credentials from Improv. A
+configuration with Wi-Fi credentials in YAML connects again with these
+credentials.
 
 ---
 
@@ -552,8 +591,8 @@ connection to Home Assistant, because the LED state follows the API state.
 
 ## Known issues
 
-1. The board has no buttons. So you can only stop a timer or a response when you
-   say "stop". You cannot start the pipeline by hand.
+1. The **Mute** button is the only button. So you can only stop a timer or a
+   response when you say "stop". You cannot start the pipeline by hand.
 2. There is no hardware volume control. Only the software volume works.
 
 ---
@@ -564,3 +603,6 @@ connection to Home Assistant, because the LED state follows the API state.
 - The XMOS control protocol follows Respeaker's `xvf_host.py`.
 - The notification sounds come from the
   [Home Assistant Voice PE](https://github.com/esphome/home-assistant-voice-pe) project.
+  The sounds are © 2024 by Clayton Charles Tapp, under CC BY 4.0. The `sounds/`
+  directory holds copies in Ogg Opus format. Read
+  [sounds/LICENSE.md](sounds/LICENSE.md) for the changes.

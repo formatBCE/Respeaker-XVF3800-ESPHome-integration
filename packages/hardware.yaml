@@ -146,12 +146,67 @@ respeaker_xvf3800:
     # This poll is also the azimuth source for beam lock. Set update_interval to
     # never, and the Beam lock switch stops working.
     update_interval: 100ms
+  # The DSP mutes the microphones on a press by itself. The ESP reads the button
+  # only for the factory reset hold and for Improv BLE authorization.
+  mute_button:
+    id: mute_button
+    internal: true
+    update_interval: 50ms
+    on_release:
+      - if:
+          condition:
+            lambda: return id(factory_reset_phase) == 2;
+          then:
+            - button.press: factory_reset_button
+    on_multi_click:
+      # Factory reset warning. The press toggled mute in the DSP, so toggle it
+      # back: a hold of 10 s or more never changes mute.
+      - timing:
+          - ON for at least 10s
+        then:
+          - switch.toggle: mic_mute_switch
+          - lambda: id(factory_reset_phase) = 1;
+          - script.execute: control_leds
+          - script.execute:
+              id: play_sound
+              priority: true
+              sound_file: "factory_reset_initiated_sound"
+          - wait_until:
+              binary_sensor.is_off: mute_button
+          - if:
+              condition:
+                lambda: return id(factory_reset_phase) != 2;
+              then:
+                - lambda: id(factory_reset_phase) = 0;
+                - script.execute: control_leds
+                - script.execute:
+                    id: play_sound
+                    priority: true
+                    sound_file: "factory_reset_cancelled_sound"
+      # Factory reset confirmed. The reset runs when the button is released.
+      - timing:
+          - ON for at least 22s
+        then:
+          - script.execute:
+              id: play_sound
+              priority: true
+              sound_file: "factory_reset_confirmed_sound"
+          - lambda: id(factory_reset_phase) = 2;
+          - script.execute: control_leds
   firmware:
-    url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin
-    version: "1.0.7"
-    md5: 043a848f544ff2c7265ac19685daf5de
+    url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/respeaker_xvf3800_i2s_master_v1.0.9_48k.bin
+    version: "1.0.9"
+    md5: b62766ccf8fbbaf924d0d13beace495b
     on_error:
       - lambda: id(dsp_status).publish_state("Update failed");
+
+globals:
+  # Mute button hold: 0 = none, 1 = warning (10 s), 2 = confirmed (22 s).
+  # The reset runs on release in phase 2.
+  - id: factory_reset_phase
+    type: int
+    restore_value: no
+    initial_value: '0'
 
 text_sensor:
   # Result of the DSP firmware check at boot: OK, Update failed, or No response.

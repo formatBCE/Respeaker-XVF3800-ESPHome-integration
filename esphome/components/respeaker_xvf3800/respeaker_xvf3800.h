@@ -36,7 +36,10 @@ static const uint16_t MAX_XFER = 128;  // maximum number of bytes we can transfe
 const uint8_t GPO_SERVICER_RESID = 20;
 const uint8_t GPO_SERVICER_RESID_GPO_READ_VALUES = 0;
 const uint8_t GPO_SERVICER_RESID_GPO_WRITE_VALUE = 1;
-const uint8_t GPO_SERVICER_RESID_LED_RING_VALUE = 18;
+// LED_RING_COLOR is cmd 19 from firmware 1.0.8 on. Before 1.0.8 it was cmd 18,
+// which 1.0.8 gave to DOA_VALUE. Seeed I2S firmware changelog, v1.0.8.
+const uint8_t GPO_SERVICER_RESID_LED_RING_VALUE = 19;
+const uint8_t GPO_SERVICER_RESID_LED_RING_VALUE_PRE_1_0_8 = 18;
 const uint8_t GPO_GPO_READ_NUM_BYTES = 5;
 
 // AEC Azimuth constants for LED beam sensor
@@ -60,6 +63,12 @@ const uint8_t AEC_ASROUTONOFF_CMD = 35;  // 1 = category 7 carries ASR beams, 0 
 const uint8_t AEC_ASROUTGAIN_CMD = 36;
 const uint8_t PP_SERVICER_RESID = 17;
 const uint8_t PP_AGCMAXGAIN_CMD = 11;  // comms path only; does not affect the ASR output
+
+// IO config servicer (GPI inputs). Verified against Respeaker xvf_host.py.
+// GPI_VALUE_ALL : (36, 6, 1, ro, uint32) — active-state bitmap, bit 0 = onboard Mute button
+const uint8_t IO_CONFIG_SERVICER_RESID = 36;
+const uint8_t IO_CONFIG_GPI_VALUE_ALL_CMD = 6;
+const uint32_t GPI_MUTE_BUTTON_BIT = 1 << 0;
 
 const uint8_t RESID_LED = 0x0C;
 const uint8_t RESID_DFU_VERSION = 0xFE;
@@ -194,6 +203,20 @@ class LEDBeamSensor : public sensor::Sensor, public PollingComponent {
   RespeakerXVF3800 *parent_{nullptr};
 };
 
+#ifdef USE_BINARY_SENSOR
+// MuteButtonBinarySensor polls the onboard Mute button. The DSP still mutes on a
+// press by itself; this sensor only reports the button.
+class MuteButtonBinarySensor : public binary_sensor::BinarySensor, public PollingComponent {
+ public:
+  void set_parent(RespeakerXVF3800 *parent) { parent_ = parent; }
+  void update() override;
+  void dump_config() override;
+
+ protected:
+  RespeakerXVF3800 *parent_{nullptr};
+};
+#endif
+
 // --- Main Hub Class ---
 
 class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
@@ -241,6 +264,8 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   bool read_gpio_status(uint32_t *gpio_status);
   bool read_mute_status();
   void write_mute_status(bool value);
+  // Reads the Mute button. Returns false if the DSP gave no valid answer.
+  bool read_mute_button(bool &pressed);
   
   // Individual LED ring control (12 LEDs)
   void set_led_ring(uint32_t *rgb_array);
@@ -273,6 +298,7 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   bool firmware_bin_is_valid_() { return this->firmware_bin_ != nullptr && this->firmware_bin_length_; }
   bool version_read_();
   bool versions_match_();
+  bool chip_version_at_least_(uint8_t major, uint8_t minor, uint8_t patch);
 
   bool dfu_get_status_();
   bool dfu_get_version_();

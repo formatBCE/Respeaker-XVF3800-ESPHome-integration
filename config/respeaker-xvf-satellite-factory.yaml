@@ -1,0 +1,81 @@
+# =============================================================================
+# Respeaker XVF3800 voice satellite — factory configuration
+#
+# Firmware without credentials. The device gets Wi-Fi through Improv over BLE
+# or USB serial. Push the Mute button to authorize Improv BLE.
+#
+# For your own build with secrets, use respeaker-xvf-satellite-example.yaml.
+# =============================================================================
+
+substitutions:
+  name: respeaker-xvf3800
+  friendly_name: reSpeaker XVF3800
+
+  # Release of this firmware. An adopted device imports the same release.
+  respeaker_ref: 2026.9.1
+
+packages:
+  base: !include ../packages/base.yaml
+  hardware: !include ../packages/hardware.yaml
+  voice_assistant: !include ../packages/voice-assistant.yaml
+  leds: !include ../packages/leds.yaml
+  timers_alarm: !include ../packages/timers-alarm.yaml
+  # BLE and Wi-Fi share the radio. Disable BLE while Wi-Fi is up, and wait for
+  # that before the voice assistant starts.
+  va_connected_wait_for_ble:
+    voice_assistant:
+      on_client_connected:
+        - wait_until:
+            not: ble.enabled
+        - delay: 2s
+    wifi:
+      on_disconnect:
+        - ble.enable:
+
+esphome:
+  # Each device gets a unique name on the network.
+  name_add_mac_suffix: true
+
+dashboard_import:
+  package_import_url: github://formatBCE/Respeaker-XVF3800-ESPHome-integration/config/respeaker-xvf-satellite-factory.yaml@${respeaker_ref}
+  import_full_config: false
+
+wifi:
+  on_connect:
+    - delay: 5s
+    - ble.disable:
+    - script.execute: control_leds
+
+ota:
+  - platform: esphome
+    id: ota_esphome
+
+# Commented out for auto-publishing. Uncomment if you build manually.
+
+# ota:
+#   - platform: http_request
+#     id: ota_http_request
+
+# http_request:
+
+# update:
+#   - platform: http_request
+#     name: Firmware Update
+#     update_interval: 30min
+#     source: <manifest URL>
+
+improv_serial:
+
+esp32_ble:
+
+esp32_improv:
+  authorizer: mute_button
+  on_start:
+    - lambda: id(improv_ble_in_progress) = true;
+    - script.execute: control_leds
+  on_provisioned:
+    - lambda: id(improv_ble_in_progress) = false;
+    - script.execute: control_leds
+  on_stop:
+    - lambda: id(improv_ble_in_progress) = false;
+    - script.execute: control_leds

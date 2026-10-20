@@ -11,7 +11,9 @@ Layout:
 - `esphome/components/aic3104/` — `audio_dac` platform for the TLV320AIC3104 codec.
 - `packages/` — the ESPHome packages consumers pull over `packages:`. This is the source of truth for device config: `base.yaml` (core/network/api/external_components), `hardware.yaml` (I2S, speaker, DSP, codec, DFU), `voice-assistant.yaml` (mWW, pipeline, media player), `leds.yaml` (all LED effect scripts), `timers-alarm.yaml` (time, alarm, timers).
 - `config/respeaker-xvf-satellite-example.yaml` — thin (~47 line) consumer example. It only sets substitutions and the secret-bearing `wifi:`/`api:`/`ota:` blocks.
-- `application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin` — XMOS firmware image, served over raw GitHub URL and flashed by the component's DFU code.
+- `config/respeaker-xvf-satellite-factory.yaml` — factory configuration without credentials: local `!include` of the packages, Improv over BLE (authorizer: `mute_button`) and serial, BLE off while Wi-Fi is up, `dashboard_import` of itself at `${respeaker_ref}`. The `ota: http_request` and `update:` blocks stay commented out for a future publishing workflow.
+- `respeaker_xvf3800_i2s_master_v1.0.9_48k.bin` — XMOS firmware image (Seeed I2S master, 48 kHz), served over raw GitHub URL and flashed by the component's DFU code.
+- `sounds/` — the built-in sounds: Ogg Opus copies (48 kbps mono) of the Voice PE sounds, CC BY 4.0 (`sounds/LICENSE.md` holds the attribution and the ffmpeg command). `packages/voice-assistant.yaml` gets them at `${respeaker_ref}`. Keep them Opus: both media player pipelines are `format: FLAC`, so no MP3 file means no MP3 decoder in the build. A new MP3 or WAV sound adds that decoder back.
 - `ha/` — Home Assistant script snippet that calls the device's `set_led_color` API action.
 
 ## Commands
@@ -79,6 +81,12 @@ The DSP reports four azimuth slots (radians) from `AEC_SERVICER_RESID`/cmd 75: b
 ### LED ring
 
 The ring is 12 RGB LEDs written as one 12-entry `uint32_t` array through `set_led_ring()`. All animation lives in YAML, now in `packages/leds.yaml`: a 50 ms `interval` dispatches on the `current_led_effect` global to one of the `update_*_effect` scripts, and `control_leds` decides which effect the current device state calls for. Add an effect by adding a script plus a branch in that interval — not by touching C++.
+
+`set_led_ring()` picks the command from the version read off the chip: `LED_RING_COLOR` is cmd 19 from XMOS firmware 1.0.8 on, cmd 18 before (1.0.8 swapped it with `DOA_VALUE`). `dfu_get_version_()` invalidates the cached frame, so the next frame goes out with the right command.
+
+### Mute button
+
+The DSP keeps its built-in mute action: a press toggles mute in the DSP, and `MuteSwitch` sees it on its 1 s poll. `MuteButtonBinarySensor` (`mute_button`, 50 ms poll) only reads the button through `GPI_VALUE_ALL` (IO config servicer, resid 36, cmd 6, bit 0). `packages/hardware.yaml` uses it for the Voice PE factory reset hold (10 s warning, 22 s confirm, reset on release; at 10 s it toggles `mic_mute_switch` back, so a hold never changes mute). The `factory_reset_phase` global (0 none, 1 warning, 2 confirmed) is an input of `control_leds` and wins over every state except a failed DSP: orange breathe, then solid red and the factory config uses it as the Improv authorizer. Do not set `MUTE_FUNCTION_ENABLE` to 0: the hardware mute must keep working when the ESP misbehaves.
 
 The ring is not an addressable output, so the `LED Ring` light (`led_ring_light`, `platform: rgb`) does not write the LEDs; it drives the animation engine. It needs three template `output`s only because `platform: rgb` demands them — they are deliberately stubs, because that platform premultiplies colour by brightness and the engine needs the two apart. The light's `on_state` reads `remote_values` instead, and is the **single writer** of `user_led_ring_color_{r,g,b}`, `user_led_ring_brightness` (a plain global, not a `number`), `user_idle_effect` and `user_idle_speed`. Everything that used to write those globals — the `user_led_color_preset` select and the `set_led_color` API action — now calls `id(led_ring_light).make_call()` instead, and the values flow back out through `on_state`. Effect names map to engine strings in exactly one place, that `on_state` lambda; the four `lambda` light effects have empty bodies and exist only to populate Home Assistant's effect list.
 

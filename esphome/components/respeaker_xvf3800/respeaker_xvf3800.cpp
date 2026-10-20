@@ -245,6 +245,14 @@ bool RespeakerXVF3800::versions_match_() {
          this->firmware_bin_version_patch_ == this->firmware_version_patch_;
 }
 
+bool RespeakerXVF3800::chip_version_at_least_(uint8_t major, uint8_t minor, uint8_t patch) {
+  if (this->firmware_version_major_ != major)
+    return this->firmware_version_major_ > major;
+  if (this->firmware_version_minor_ != minor)
+    return this->firmware_version_minor_ > minor;
+  return this->firmware_version_patch_ >= patch;
+}
+
 bool RespeakerXVF3800::dfu_get_status_() {
   const uint8_t status_req[] = {DFU_CONTROLLER_SERVICER_RESID,
                                 DFU_CONTROLLER_SERVICER_RESID_DFU_GETSTATUS | DFU_COMMAND_READ_BIT, 6};
@@ -291,6 +299,8 @@ bool RespeakerXVF3800::dfu_get_version_() {
   this->firmware_version_major_ = version_resp[1];
   this->firmware_version_minor_ = version_resp[2];
   this->firmware_version_patch_ = version_resp[3];
+  // The LED ring command depends on the version, so send the next frame again.
+  this->led_frame_valid_ = false;
   if (this->firmware_version_ != nullptr) {
     this->firmware_version_->publish_state(version);
   }
@@ -385,6 +395,27 @@ void RespeakerXVF3800::write_mute_status(bool value) {
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Error writing mute status to GPIO 30. Error code: %d", (int)err);
   }
+}
+
+bool RespeakerXVF3800::read_mute_button(bool &pressed) {
+  const uint8_t request[] = {IO_CONFIG_SERVICER_RESID, IO_CONFIG_GPI_VALUE_ALL_CMD | 0x80,
+                             5};  // 4 bytes (uint32) + 1 status byte
+  uint8_t response[5];
+
+  // Single attempt, like the azimuth read: the next poll is the retry.
+  if (this->write_read(request, sizeof(request), response, sizeof(response)) != i2c::ERROR_OK) {
+    ESP_LOGV(TAG, "Failed to read GPI values");
+    return false;
+  }
+  if (response[0] != CTRL_DONE) {
+    ESP_LOGV(TAG, "GPI read returned status %u", response[0]);
+    return false;
+  }
+
+  uint32_t active;
+  memcpy(&active, &response[1], sizeof(active));
+  pressed = (active & GPI_MUTE_BUTTON_BIT) != 0;
+  return true;
 }
 
 bool RespeakerXVF3800::read_azimuth_radians_(float &out_radians, uint8_t beam_index) {
@@ -534,7 +565,9 @@ void RespeakerXVF3800::set_led_ring(uint32_t *rgb_array) {
     payload[i * 4 + 3] = 0x00;
   }
   
-  this->xmos_write_bytes(GPO_SERVICER_RESID, GPO_SERVICER_RESID_LED_RING_VALUE, payload, 48);
+  const uint8_t cmd = this->chip_version_at_least_(1, 0, 8) ? GPO_SERVICER_RESID_LED_RING_VALUE
+                                                            : GPO_SERVICER_RESID_LED_RING_VALUE_PRE_1_0_8;
+  this->xmos_write_bytes(GPO_SERVICER_RESID, cmd, payload, 48);
 }
 
 std::string RespeakerXVF3800::read_dfu_version() {
@@ -688,6 +721,24 @@ void LEDBeamSensor::update() {
   //   ESP_LOGW(TAG, "Invalid LED beam direction: %d", led_index);
   }
 }
+
+#ifdef USE_BINARY_SENSOR
+// --- MuteButtonBinarySensor Component ---
+void MuteButtonBinarySensor::dump_config() {
+  LOG_BINARY_SENSOR("", "Respeaker Mute Button", this);
+}
+
+void MuteButtonBinarySensor::update() {
+  if (this->parent_ == nullptr || this->parent_->is_failed()) {
+    return;
+  }
+
+  bool pressed;
+  if (this->parent_->read_mute_button(pressed)) {
+    this->publish_state(pressed);
+  }
+}
+#endif
 
 }  // namespace respeaker_xvf3800
 }  // namespace esphome

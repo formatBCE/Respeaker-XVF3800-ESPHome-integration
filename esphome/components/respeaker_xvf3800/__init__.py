@@ -3,7 +3,7 @@ from pathlib import Path
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, core, external_files
-from esphome.components import i2c, switch, text_sensor, sensor, number, select
+from esphome.components import binary_sensor, i2c, switch, text_sensor, sensor, number, select
 from esphome.const import (
     CONF_ID, 
     CONF_ON_ERROR,
@@ -16,13 +16,14 @@ from esphome.core import HexInt
 
 # Dependency declarations
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["switch", "text_sensor", "sensor", "number", "select"]
+AUTO_LOAD = ["binary_sensor", "switch", "text_sensor", "sensor", "number", "select"]
 CODEOWNERS = ["@formatBCE"]
 
 # Configuration keys
 CONF_MUTE_SWITCH = "mute_switch"
 CONF_DFU_VERSION = "dfu_version"
 CONF_LED_BEAM_SENSOR = "led_beam_sensor"
+CONF_MUTE_BUTTON = "mute_button"
 CONF_FIRMWARE = "firmware"
 CONF_MD5 = "md5"
 CONF_ON_BEGIN = "on_begin"
@@ -39,6 +40,9 @@ RespeakerXVF3800FlashAction = respeaker_xvf3800_ns.class_("RespeakerXVF3800Flash
 MuteSwitch = respeaker_xvf3800_ns.class_('MuteSwitch', switch.Switch, cg.PollingComponent)
 DFUVersionTextSensor = respeaker_xvf3800_ns.class_('DFUVersionTextSensor', text_sensor.TextSensor, cg.PollingComponent)
 LEDBeamSensor = respeaker_xvf3800_ns.class_('LEDBeamSensor', sensor.Sensor, cg.PollingComponent)
+MuteButtonBinarySensor = respeaker_xvf3800_ns.class_(
+    'MuteButtonBinarySensor', binary_sensor.BinarySensor, cg.PollingComponent
+)
 
 DFUEndTrigger = respeaker_xvf3800_ns.class_("DFUEndTrigger", automation.Trigger.template())
 DFUErrorTrigger = respeaker_xvf3800_ns.class_("DFUErrorTrigger", automation.Trigger.template())
@@ -90,6 +94,11 @@ CONFIG_SCHEMA = cv.Schema({
         accuracy_decimals=0,
         unit_of_measurement="",
     ).extend(cv.polling_component_schema("100ms")),
+    # Needs XMOS firmware with the IO config servicer GPI commands (1.0.9 tested).
+    cv.Optional(CONF_MUTE_BUTTON): binary_sensor.binary_sensor_schema(
+        MuteButtonBinarySensor,
+        icon="mdi:microphone-off",
+    ).extend(cv.polling_component_schema("50ms")),
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     cv.Optional(CONF_FIRMWARE): cv.All(
                 {
@@ -179,6 +188,13 @@ async def to_code(config):
         await sensor.register_sensor(led_beam_sensor, config[CONF_LED_BEAM_SENSOR])
         cg.add(var.set_led_beam_sensor(led_beam_sensor))
         cg.add(led_beam_sensor.set_parent(var))
+
+    # Set up Mute button sensor if configured
+    if CONF_MUTE_BUTTON in config:
+        mute_button = cg.new_Pvariable(config[CONF_MUTE_BUTTON][CONF_ID])
+        await cg.register_component(mute_button, config[CONF_MUTE_BUTTON])
+        await binary_sensor.register_binary_sensor(mute_button, config[CONF_MUTE_BUTTON])
+        cg.add(mute_button.set_parent(var))
 
     if config_fw := config.get(CONF_FIRMWARE):
         firmware_version = config_fw[CONF_VERSION].split(".")
