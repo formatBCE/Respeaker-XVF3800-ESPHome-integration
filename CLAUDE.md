@@ -74,7 +74,7 @@ The DSP reports four azimuth slots (radians) from `AEC_SERVICER_RESID`/cmd 75: b
 
 ### DFU firmware update
 
-`__init__.py` downloads the firmware at *build* time, checks its MD5, and embeds it as a PROGMEM array. `can_proceed()` blocks ESPHome startup until the on-chip version is read; if it does not match the embedded version, the `respeaker_xvf3800.flash` action drives a non-blocking state machine in `loop()` that sends 128-byte blocks. Progress and errors reach YAML through `on_begin`/`on_progress`/`on_end`/`on_error` triggers, compiled in only when `USE_RESPEAKER_XVF3800_STATE_CALLBACK` is defined. Bumping the bundled firmware means updating the binary, the `version`, and the `md5` in `packages/hardware.yaml` together.
+`__init__.py` downloads the firmware at *build* time, checks its MD5, and embeds it as a PROGMEM array. `can_proceed()` blocks ESPHome startup until the on-chip version is read and matches, or the component fails; on a mismatch `setup()` starts the update itself (`start_dfu_update()`, the same path as the `respeaker_xvf3800.flash` action), a non-blocking state machine in `loop()` that sends 128-byte blocks. `packages/hardware.yaml` reports the result in the `dsp_status` text sensor (`OK`, `Update failed` from `on_error`, `No response` when the component failed without a DFU error), set by an `on_boot` handler that runs after the component can proceed. Progress and errors reach YAML through `on_begin`/`on_progress`/`on_end`/`on_error` triggers, compiled in only when `USE_RESPEAKER_XVF3800_STATE_CALLBACK` is defined. Bumping the bundled firmware means updating the binary, the `version`, and the `md5` in `packages/hardware.yaml` together.
 
 ### LED ring
 

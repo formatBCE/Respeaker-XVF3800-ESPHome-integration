@@ -37,6 +37,7 @@ The device gives these entities to Home Assistant:
 | LED Ring Color Preset | select | Selects the LED ring colour |
 | LED Ring | light | Sets the LED ring colour, the brightness and the idle effect |
 | Firmware Version | text sensor | Shows the XMOS DSP firmware version |
+| DSP Status | text sensor | Shows the result of the DSP firmware check at boot |
 | Current device time | text sensor | Shows the device clock |
 | Next timer, Next timer name | sensor, text sensor | Show the first active timer |
 | Media Player | media player | Plays announcements and media |
@@ -259,10 +260,58 @@ The `respeaker_xvf3800` component holds a copy of the XMOS DSP firmware. At boot
 the component reads the version from the chip. ESPHome waits at startup until
 this read is complete.
 
-If the version on the chip is different from the version in the build, call the
-`respeaker_xvf3800.flash` action. The component then sends the firmware in
-128-byte blocks. The update does not block the main loop. The `on_begin`,
-`on_progress`, `on_end`, and `on_error` triggers report the progress.
+**CAUTION: Do not disconnect the power during a DSP firmware update. An
+interrupted update can stop the DSP.**
+
+If the version on the chip is different from the version in the build, the
+component updates the chip automatically. It sends the firmware in 128-byte
+blocks. The device does not connect to the network until the update is
+complete. The `on_begin`, `on_progress`, `on_end`, and `on_error` triggers
+report the progress.
+
+### Check the DSP status
+
+The **DSP Status** sensor shows the result of the firmware check at boot.
+
+| Value | Meaning |
+| --- | --- |
+| `OK` | The DSP firmware agrees with the build. |
+| `Update failed` | The firmware update did not complete. |
+| `No response` | The DSP does not answer on I2C. |
+
+If the value is `Update failed`, restart the device. The component then tries
+the update again. If the value stays `Update failed`, or if the value is
+`No response`, flash the DSP firmware over USB.
+
+### Flash the DSP firmware over USB
+
+Some older boards have the Seeed USB firmware. This firmware has no I2S audio
+output. Flash the Seeed I2S firmware over USB one time. After that, the device
+installs the firmware from the build.
+
+1. Install `dfu-util`. Read the [Seeed DFU guide](https://github.com/respeaker/reSpeaker_XVF3800_USB_4MIC_ARRAY/blob/master/xmos_firmwares/dfu_guide.md)
+   for the steps on Windows, macOS, and Linux.
+2. Download the [Seeed firmware repository](https://github.com/respeaker/reSpeaker_XVF3800_USB_4MIC_ARRAY)
+   as a ZIP file. Do not save one file from the browser, because the file can
+   become corrupt.
+3. In `xmos_firmwares/i2s`, find the file `respeaker_xvf3800_i2s_master_v<version>_48k.bin`.
+   Use the 48 kHz master firmware only.
+4. Connect the computer to the XMOS USB-C port. This port is nearer to the
+   3.5 mm jack.
+5. Run `dfu-util -l`. Make sure that the list shows `reSpeaker DFU Upgrade`.
+6. Run `dfu-util -R -e -a 1 -D <path to the firmware file>`.
+7. Disconnect the USB cable. Then connect the power to the board again.
+
+At the next boot, the component installs the firmware version from the build.
+Make sure that the **DSP Status** sensor shows `OK`.
+
+If `dfu-util -l` does not find the board, start the DSP in Safe Mode:
+
+1. Disconnect the power.
+2. Push and hold the **Mute** button.
+3. Connect the power, and keep the button pushed.
+4. Release the button when the red LED flashes.
+5. Do steps 5 to 7 again.
 
 To change the firmware version, change three things together:
 
@@ -478,8 +527,8 @@ file.
 **The I2C scan does not find address 0x2C.** Check the board power. The XMOS DSP
 needs about two seconds to boot. The component waits for this.
 
-**The startup stops at the firmware version read.** The DSP does not answer.
-Power the board off and on. Then read the logs at `DEBUG` level.
+**The DSP Status sensor does not show `OK`.** Read
+[Check the DSP status](#check-the-dsp-status).
 
 **There is no audio.** Check that the `aic3104` codec is at address 0x18 in the
 I2C scan. Check that the media player volume is not zero.

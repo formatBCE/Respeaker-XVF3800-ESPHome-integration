@@ -5,7 +5,24 @@
 # the XMOS XVF3800 DSP, and the TLV320AIC3104 codec.
 #
 # Do not change the pins. They are fixed by the board layout.
+#
+# This package adds its own on_boot handler. ESPHome joins the on_boot lists
+# from every package, so the handler in base.yaml also runs.
 # =============================================================================
+
+esphome:
+  on_boot:
+    # The DSP component blocks startup until the firmware is current or the
+    # component failed, so the result is final here. on_error sets the update
+    # failure text before this runs.
+    - priority: 600
+      then:
+        - lambda: |-
+            if (!id(respeaker).is_failed()) {
+              id(dsp_status).publish_state("OK");
+            } else if (!id(dsp_status).has_state()) {
+              id(dsp_status).publish_state("No response");
+            }
 
 i2s_audio:
   - id: i2s_output
@@ -133,6 +150,17 @@ respeaker_xvf3800:
     url: https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/raw/${respeaker_ref}/application_xvf3800_inthost-lr48-sqr-i2c-v1.0.7-release.bin
     version: "1.0.7"
     md5: 043a848f544ff2c7265ac19685daf5de
+    on_error:
+      - lambda: id(dsp_status).publish_state("Update failed");
+
+text_sensor:
+  # Result of the DSP firmware check at boot: OK, Update failed, or No response.
+  - platform: template
+    id: dsp_status
+    name: "DSP Status"
+    entity_category: diagnostic
+    icon: "mdi:chip"
+    update_interval: never
 
 audio_dac:
   - platform: aic3104
