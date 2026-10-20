@@ -124,9 +124,6 @@ switch:
     id: alarm_on
     icon: mdi:bell-badge
     name: "Alarm on"
-    # Turning the alarm off also cancels its snooze.
-    on_turn_off:
-      - lambda: id(snooze_until) = 0;
   # Lets "Snooze" stop a ring and start it again after "Snooze duration".
   - platform: template
     id: snooze_enabled
@@ -171,10 +168,16 @@ button:
 
 interval:
   # Starts the snoozed ring again. A snooze older than the 15 minute ring limit
-  # (the device was off) is dropped instead of ringing late.
+  # (the device was off) is dropped instead of ringing late. Turning "Alarm on"
+  # off cancels the snooze: this check watches the switch, the same way as the
+  # Respeaker Lite core, where a device package can replace alarm_on's triggers.
   - interval: 1s
     then:
       - lambda: |-
+          static bool was_on = id(alarm_on).state;
+          bool is_on = id(alarm_on).state;
+          if (was_on && !is_on) id(snooze_until) = 0;
+          was_on = is_on;
           if (id(snooze_until) == 0) return;
           auto now = id(homeassistant_time).now();
           if (!now.is_valid() || now.timestamp < id(snooze_until)) return;
