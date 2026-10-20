@@ -29,6 +29,7 @@ concurrency:
 env:
   PUBLISH_URL: https://formatbce.github.io/Respeaker-XVF3800-ESPHome-integration
   FACTORY_YAML: config/respeaker-xvf-satellite-factory.yaml
+  LITE_REPO: https://github.com/formatBCE/Respeaker-Lite-ESPHome-integration
   # Build tools. Raise them on purpose, so that a release is reproducible.
   ESPHOME_VERSION: "2026.9.1"
   EWT_GEN_VERSION: "1.6.1"
@@ -73,6 +74,13 @@ jobs:
               exit 1
             fi
           done
+          # The kenobi and snooze models come from a Lite release.
+          LITE=$(value respeaker_lite_ref packages/voice-assistant.yaml)
+          if ! git ls-remote --exit-code --tags "$LITE_REPO" "refs/tags/$LITE" > /dev/null; then
+            echo "::error::respeaker_lite_ref is '$LITE', but $LITE_REPO has no such tag."
+            exit 1
+          fi
+          echo "XVF3800 $V uses Respeaker Lite $LITE."
 
   build:
     needs: prepare

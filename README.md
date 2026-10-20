@@ -30,6 +30,10 @@ The device gives these entities to Home Assistant:
 | Alarm on | switch | Turns the alarm clock on |
 | Alarm time | datetime | Sets the alarm time |
 | Alarm action | select | Selects what the alarm does |
+| Snooze enabled | switch | Lets you say "Snooze" to a ringing timer or alarm |
+| Snooze duration | number | Sets the time until the ring starts again (1 to 60 minutes) |
+| Snooze pending | binary sensor | Shows that a snoozed ring waits to start again |
+| Cancel snooze | button | Cancels a snoozed ring |
 | Wake word sensitivity | select | Sets the wake word threshold |
 | DSP route | select | Chooses what each DSP output channel feeds |
 | ASR output gain | number | Gain on the ASR output (wake word; STT on the ASR route) |
@@ -85,7 +89,7 @@ Create a file for your device. The packages give all the other configuration.
 substitutions:
   name: respeaker-xvf3800-assistant
   friendly_name: reSpeaker XVF3800 Assistant
-  respeaker_ref: 2026.10.0
+  respeaker_ref: 2026.10.1
 
 packages:
   respeaker:
@@ -236,6 +240,25 @@ configuration.
 
 **Caution:** Do not delete a whole package file. Read
 [Package layout](#package-layout) first.
+
+---
+
+## Snooze
+
+When a timer or the alarm rings, say "Snooze". You do not say the wake word
+first. The ring stops, and starts again after the **Snooze duration** (9 minutes
+by default). You can snooze again each time the ring starts again. To stop the
+ring, say "Stop" or the wake word.
+
+The device does not listen for "Stop" while it waits to ring again, so a false
+"Stop" cannot cancel your alarm. To cancel a snooze, press **Cancel snooze**, or
+turn off **Alarm on**.
+
+The device keeps the snooze if it restarts. If the device was off for more than
+15 minutes after the ring was due, the device does not ring.
+
+Snooze needs the clock of the device. If the clock is not set, the device
+ignores "Snooze" and continues to ring. The "Snooze" model knows English only.
 
 ---
 
@@ -616,6 +639,10 @@ connection to Home Assistant, because the LED state follows the API state.
 
 - [formatBCE](https://github.com/formatBCE) — components and configuration.
 - The XMOS control protocol follows Respeaker's `xvf_host.py`.
+- [dlarkinsPonderosa](https://github.com/dlarkinsPonderosa) trained the "Snooze"
+  wake word model and designed the snooze feature
+  ([#59](https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/issues/59),
+  [#60](https://github.com/formatBCE/Respeaker-XVF3800-ESPHome-integration/pull/60)).
 - The notification sounds come from the
   [Home Assistant Voice PE](https://github.com/esphome/home-assistant-voice-pe) project.
   The sounds are © 2024 by Clayton Charles Tapp, under CC BY 4.0. The `sounds/`
