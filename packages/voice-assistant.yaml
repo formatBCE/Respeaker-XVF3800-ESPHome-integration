@@ -10,8 +10,7 @@
 substitutions:
   # Release of Respeaker-Lite-ESPHome-integration that holds the kenobi wake
   # word model.
-  # TEST BRANCH: set this back to a Lite release tag before you merge.
-  respeaker_lite_ref: snooze
+  respeaker_lite_ref: 2026.10.0
   # Substitutions for audio files. The built-in sounds are Ogg Opus copies of
   # the Voice PE sounds in sounds/ (CC BY 4.0, see sounds/LICENSE.md), pinned
   # with the rest of the repository by respeaker_ref.
@@ -216,14 +215,24 @@ micro_wake_word:
               id: send_wake_word_event
               wake_word: !lambda return wake_word;
           # If a timer is ringing: Stop it, do not start the voice assistant (We can stop timer from voice!)
+          # "Snooze" stops it too, and rings again later.
           - if:
               condition:
                 switch.is_on: timer_ringing
               then:
-                - logger.log:
-                    level: INFO
-                    format: "Wake word ignored: stopping the ringing timer"
-                - switch.turn_off: timer_ringing
+                - if:
+                    condition:
+                      lambda: return wake_word == "Snooze";
+                    then:
+                      - logger.log:
+                          level: INFO
+                          format: "Wake word: snoozing the ringing timer"
+                      - script.execute: snooze_ring
+                    else:
+                      - logger.log:
+                          level: INFO
+                          format: "Wake word ignored: stopping the ringing timer"
+                      - switch.turn_off: timer_ringing
               # Stop voice assistant if running
               else:
                 - if:
