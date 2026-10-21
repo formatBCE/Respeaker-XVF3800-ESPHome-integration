@@ -1,8 +1,13 @@
 # =============================================================================
 # Respeaker XVF3800 satellite — base package
 #
-# Core platform setup: node identity, ESP32-S3 build options, network, API,
-# I2C bus, and the external components.
+# The voice satellite core, node identity, ESP32-S3 build options, the I2C bus,
+# and the external components.
+#
+# The core comes from Respeaker-Lite-ESPHome-integration at respeaker_lite_ref:
+# boot and connection logic, the voice pipeline, the media player, the timers,
+# the alarm, and the sounds. The packages of this repository add the XVF3800
+# hardware and extend the core items with "id: !extend <id>".
 #
 # This package declares the substitution defaults for the whole project.
 # Override any of them in your own configuration.
@@ -18,52 +23,34 @@ substitutions:
   # It selects the C++ components and the DFU firmware. Each release sets it to
   # its own tag, so a pinned package stays consistent. Set it to "main" to
   # follow the newest code.
-  respeaker_ref: 2026.10.2
+  respeaker_ref: 2026.10.3
+  # Release of Respeaker-Lite-ESPHome-integration that holds the voice
+  # satellite core, the sounds, and the kenobi and snooze wake word models.
+  respeaker_lite_ref: 2026.10.3
 
   # --- Tuning --------------------------------------------------------------
-  # Set this to "true" if your network does not broadcast its SSID.
-  hidden_ssid: "false"
+  # The core sets hidden_ssid ("true" if your network does not broadcast its
+  # SSID) and the voice assistant phase IDs.
   log_level: INFO
 
-  # --- Voice assistant phases ----------------------------------------------
-  # The voice assistant is ready to be triggered by a wake word
-  voice_assist_idle_phase_id: '1'
-  # The voice assistant is waiting for a voice command (after being triggered by the wake word)
-  voice_assist_waiting_for_command_phase_id: '2'
-  # The voice assistant is listening for a voice command
-  voice_assist_listening_for_command_phase_id: '3'
-  # The voice assistant is currently processing the command
-  voice_assist_thinking_phase_id: '4'
-  # The voice assistant is replying to the command
-  voice_assist_replying_phase_id: '5'
-  # The voice assistant is not ready
-  voice_assist_not_ready_phase_id: '10'
-  # The voice assistant encountered an error
-  voice_assist_error_phase_id: '11'
+packages:
+  # The core merges first, so a value in the packages of this repository wins.
+  satellite_core:
+    url: https://github.com/formatBCE/Respeaker-Lite-ESPHome-integration
+    ref: ${respeaker_lite_ref}
+    refresh: 1d
+    files:
+      - packages/core/base.yaml
+      - packages/core/voice-assistant.yaml
+      - packages/core/media-player.yaml
+      - packages/core/timers-alarm.yaml
 
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
   project:
     name: formatbce.Respeaker XVF3800 Satellite
-    version: 2026.10.2
-  min_version: 2026.10.0
-  on_boot:
-    - priority: 375
-      then:
-        - sensor.template.publish:
-            id: next_timer
-            state: -1
-        # Run the script to refresh the LED status
-        - script.execute: control_leds
-        # If after 10 minutes, the device is still initializing (It did not yet connect to Home Assistant), turn off the init_in_progress variable and run the script to refresh the LED status
-        - delay: 10min
-        - if:
-            condition:
-              lambda: return id(init_in_progress);
-            then:
-              - lambda: id(init_in_progress) = false;
-              - script.execute: control_leds
+    version: 2026.10.3
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -94,19 +81,9 @@ esp32:
 # Credentials are not set here. A remote package cannot read secrets.
 # Supply "ssid" and "password" from your own configuration. The two blocks merge.
 wifi:
-  id: wifi_id
-  fast_connect: ${hidden_ssid}
   # Add power management and connection optimizations
   power_save_mode: none  # Disable power saving for better performance
   reboot_timeout: 10min  # Prevent unnecessary reboots
-  on_connect:
-    - lambda: id(improv_ble_in_progress) = false;
-    - script.execute: control_leds
-  on_disconnect:
-    - script.execute: control_leds
-
-network:
-  enable_ipv6: true
 
 logger:
   level: ${log_level}
@@ -119,7 +96,6 @@ logger:
     respeaker_xvf3800: INFO
 
 api:
-  id: api_id
   actions:
     - action: set_led_color
       variables:
@@ -143,25 +119,6 @@ api:
         - select.set:
             id: user_led_color_preset
             option: "Custom"
-    - action: start_va
-      then:
-        - voice_assistant.start
-    - action: stop_va
-      then:
-        - voice_assistant.stop
-    - action: set_time_zone
-      variables:
-        posix_time_zone: string
-      then:
-        - lambda: |-
-            setenv("TZ", posix_time_zone.c_str(), 1);
-            tzset();
-            id(saved_time_zone) = posix_time_zone;
-            id(publish_current_time).execute();
-  on_client_connected:
-    - script.execute: control_leds
-  on_client_disconnected:
-    - script.execute: control_leds
 
 i2c:
   - id: internal_i2c
@@ -175,27 +132,6 @@ psram:
   speed: 80MHz
   ignore_not_found: false  # The VPE has PSRAM, so this is safe. Allows configuring WiFi driver to use more resources (done automatically by the speaker media player)
 
-
-globals:
-  - id: init_in_progress
-    type: bool
-    restore_value: no
-    initial_value: 'true'
-  # Global variable storing the state of ImprovBLE. Used to draw different LED animations
-  - id: improv_ble_in_progress
-    type: bool
-    restore_value: no
-    initial_value: 'false'
-  # Global variable tracking the phase of the voice assistant (defined above). Initialized to not_ready
-  - id: voice_assistant_phase
-    type: int
-    restore_value: no
-    initial_value: ${voice_assist_not_ready_phase_id}
-  - id: saved_time_zone
-    type: std::string
-    restore_value: yes
-    initial_value: '"UTC0"'
-
 external_components:
   - source:
       type: git
@@ -205,25 +141,3 @@ external_components:
       - respeaker_xvf3800
       - aic3104
     refresh: 0s
-
-select:
-  - platform: logger
-    id: logger_select
-    name: Logger Level
-    disabled_by_default: true
-
-button:
-  - platform: factory_reset
-    id: factory_reset_button
-    name: "Factory Reset"
-    entity_category: diagnostic
-    internal: true
-  - platform: restart
-    id: restart_button
-    name: "Restart"
-    entity_category: config
-    disabled_by_default: true
-    icon: "mdi:restart"
-
-debug:
-  update_interval: 5s

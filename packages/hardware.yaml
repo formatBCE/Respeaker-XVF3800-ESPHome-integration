@@ -107,11 +107,6 @@ speaker:
     sample_rate: 48000
     bits_per_sample: 16
 
-sendspin:
-  id: sendspin_hub
-  task_stack_in_psram: false
-
-
 respeaker_xvf3800:
   id: respeaker
   address: 0x2C
