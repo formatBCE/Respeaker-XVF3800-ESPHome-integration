@@ -74,8 +74,8 @@ jobs:
               exit 1
             fi
           done
-          # The kenobi and snooze models come from a Lite release.
-          LITE=$(value respeaker_lite_ref packages/voice-assistant.yaml)
+          # The voice satellite core comes from a Lite release.
+          LITE=$(value respeaker_lite_ref packages/base.yaml)
           if ! git ls-remote --exit-code --tags "$LITE_REPO" "refs/tags/$LITE" > /dev/null; then
             echo "::error::respeaker_lite_ref is '$LITE', but $LITE_REPO has no such tag."
             exit 1
