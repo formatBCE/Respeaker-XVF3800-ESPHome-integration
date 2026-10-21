@@ -54,14 +54,14 @@ The **LED Ring** light controls the 12-LED ring. Read
 
 ## Requirements
 
-- ESPHome **2026.9.0** or later.
+- ESPHome **2026.10.0** or later.
 - Home Assistant with the ESPHome integration.
 - A reSpeaker XVF3800 USB 4-Mic Array board.
 - A USB-C cable and a computer that can flash the board.
 
-This project needs a **patched `i2s_audio` component**. The standard ESPHome
-component does not work with this board. The `base.yaml` package gets the patch
-from a fork. You do not need to install it yourself.
+The microphones run at 48 kHz, the same clock as the speaker. The standard
+ESPHome `resampler` microphone converts them to 16 kHz for the voice assistant
+and the wake word. This needs ESPHome 2026.10.0 or later.
 
 ---
 
@@ -89,7 +89,7 @@ Create a file for your device. The packages give all the other configuration.
 substitutions:
   name: respeaker-xvf3800-assistant
   friendly_name: reSpeaker XVF3800 Assistant
-  respeaker_ref: 2026.10.1
+  respeaker_ref: 2026.10.2
 
 packages:
   respeaker:
@@ -181,7 +181,6 @@ substitution in a package.
 | `name` | `respeaker-xvf3800-assistant` | ESPHome node name |
 | `friendly_name` | `reSpeaker XVF3800 Assistant` | Display name |
 | `respeaker_ref` | the current release, for example `2026.9.1` | Release for the packages, the components, and the firmware |
-| `i2s_audio_ref` | `respeaker_microphone` | Ref for the patched `i2s_audio` fork |
 | `hidden_ssid` | `"false"` | Set this to `"true"` for a hidden network |
 | `log_level` | `INFO` | Logger level |
 | `voice_assist_*_phase_id` | `1` to `11` | Phase constants for the LED ring |

@@ -48,8 +48,10 @@ i2s_audio:
     #   allow_other_uses: true
 
 microphone:
+  # The I2S clocks run at 48 kHz for the speaker and the microphones together,
+  # so the microphones run at 48 kHz too.
   - platform: i2s_audio
-    id: i2s_mics
+    id: i2s_mics_raw
     i2s_din_pin: GPIO43
     adc_type: external
     pdm: false
@@ -58,6 +60,13 @@ microphone:
     i2s_mode: secondary
     i2s_audio_id: i2s_input
     channel: stereo
+  # Voice assistant and wake word need 16 kHz. Both channels stay.
+  - platform: resampler
+    id: i2s_mics
+    microphone:
+      microphone: i2s_mics_raw
+      channels: [0, 1]
+    sample_rate: 16000
 
 speaker:
   # Hardware speaker output
