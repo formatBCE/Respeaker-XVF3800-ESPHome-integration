@@ -59,9 +59,11 @@ The **LED Ring** light controls the 12-LED ring. Read
 - A reSpeaker XVF3800 USB 4-Mic Array board.
 - A USB-C cable and a computer that can flash the board.
 
-The microphones run at 48 kHz, the same clock as the speaker. The standard
-ESPHome `resampler` microphone converts them to 16 kHz for the voice assistant
-and the wake word. This needs ESPHome 2026.10.0 or later.
+The microphones run at 48 kHz, the same clock as the speaker. The
+`decimator` microphone platform converts them to 16 kHz for the voice
+assistant and the wake word. It keeps 1 frame of 3 and does not filter the
+audio. The DSP processes the audio at 16 kHz, so the 48 kHz stream has no
+content above 8 kHz. This needs ESPHome 2026.10.0 or later.
 
 ---
 
@@ -89,7 +91,7 @@ Create a file for your device. The packages give all the other configuration.
 substitutions:
   name: respeaker-xvf3800-assistant
   friendly_name: reSpeaker XVF3800 Assistant
-  respeaker_ref: 2026.10.3
+  respeaker_ref: 2026.10.4
 
 packages:
   respeaker:

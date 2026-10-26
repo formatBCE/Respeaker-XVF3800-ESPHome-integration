@@ -12,7 +12,7 @@ substitutions:
   friendly_name: reSpeaker XVF3800
 
   # Release of this firmware. An adopted device imports the same release.
-  respeaker_ref: 2026.10.3
+  respeaker_ref: 2026.10.4
 
 packages:
   respeaker_xvf: !include common/respeaker-xvf-satellite-base.yaml
