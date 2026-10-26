@@ -23,10 +23,10 @@ substitutions:
   # It selects the C++ components and the DFU firmware. Each release sets it to
   # its own tag, so a pinned package stays consistent. Set it to "main" to
   # follow the newest code.
-  respeaker_ref: 2026.10.3
+  respeaker_ref: 2026.10.4
   # Release of Respeaker-Lite-ESPHome-integration that holds the voice
   # satellite core, the sounds, and the kenobi and snooze wake word models.
-  respeaker_lite_ref: 2026.10.3
+  respeaker_lite_ref: 2026.10.4
 
   # --- Tuning --------------------------------------------------------------
   # The core sets hidden_ssid ("true" if your network does not broadcast its
@@ -50,7 +50,7 @@ esphome:
   friendly_name: ${friendly_name}
   project:
     name: formatbce.Respeaker XVF3800 Satellite
-    version: 2026.10.3
+    version: 2026.10.4
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -140,4 +140,12 @@ external_components:
     components:
       - respeaker_xvf3800
       - aic3104
+    refresh: 0s
+  # The decimator microphone, shared with the Respeaker Lite.
+  - source:
+      type: git
+      url: https://github.com/formatBCE/Respeaker-Lite-ESPHome-integration
+      ref: ${respeaker_lite_ref}
+    components:
+      - decimator
     refresh: 0s
