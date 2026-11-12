@@ -23,7 +23,7 @@ substitutions:
   # It selects the C++ components and the DFU firmware. Each release sets it to
   # its own tag, so a pinned package stays consistent. Set it to "main" to
   # follow the newest code.
-  respeaker_ref: 2026.10.4
+  respeaker_ref: 2026.11.0
   # Release of Respeaker-Lite-ESPHome-integration that holds the voice
   # satellite core, the sounds, and the kenobi and snooze wake word models.
   respeaker_lite_ref: 2026.10.4
@@ -50,7 +50,7 @@ esphome:
   friendly_name: ${friendly_name}
   project:
     name: formatbce.Respeaker XVF3800 Satellite
-    version: 2026.10.4
+    version: 2026.11.0
 
 esp32:
   board: esp32-s3-devkitc-1
