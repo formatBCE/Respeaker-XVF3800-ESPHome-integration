@@ -2,7 +2,8 @@
 # Respeaker XVF3800 satellite — voice assistant package
 #
 # The XVF3800 additions to the voice assistant of the core: the beam lock, the
-# wake word gain, and the volume range and volume display of the media player.
+# voice direction sensor, the wake word gain, and the volume range and volume
+# display of the media player.
 #
 # The core (Respeaker-Lite-ESPHome-integration packages/core/) holds the wake
 # word detection, the voice pipeline, the media player, and the sounds. The
@@ -20,6 +21,20 @@ switch:
     entity_category: config
     optimistic: true
     restore_mode: RESTORE_DEFAULT_OFF
+
+sensor:
+  # Voice Direction. The direction of the wake word in degrees, published once
+  # per wake word by wake_word_start_hook, never from the 10 Hz beam poll.
+  # force_update gives one state per wake word, also for an unchanged direction.
+  - platform: template
+    id: voice_direction
+    name: Voice Direction
+    icon: "mdi:compass-outline"
+    unit_of_measurement: "°"
+    accuracy_decimals: 0
+    disabled_by_default: true
+    force_update: true
+    update_interval: never
 
 micro_wake_word:
   microphone:
@@ -39,6 +54,12 @@ script:
             switch.is_on: beam_lock_enabled
           then:
             - lambda: id(respeaker).lock_beam();
+      # One state per wake word, after the lock, so it is the locked direction.
+      - lambda: |-
+          const float degrees = id(respeaker).get_azimuth_degrees();
+          if (!std::isnan(degrees)) {
+            id(voice_direction).publish_state(degrees);
+          }
 
 # These lists add to the core triggers, so they run after the core actions.
 voice_assistant:

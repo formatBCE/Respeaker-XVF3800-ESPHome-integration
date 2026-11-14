@@ -8,6 +8,7 @@
 #include "esphome/core/hal.h"
 
 #include <cinttypes>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -499,9 +500,8 @@ void RespeakerXVF3800::lock_beam() {
   // Prefer the value the 10 Hz beam poll already has. It is at most one poll
   // old, it is the direction the wake word came from, and it costs no bus time
   // on the wake-word path. Fall back to one read if the poll is off or stale.
-  const uint32_t max_age_ms = 500;
   float radians;
-  if (this->last_azimuth_ms_ != 0 && (millis() - this->last_azimuth_ms_) <= max_age_ms) {
+  if (this->last_azimuth_ms_ != 0 && (millis() - this->last_azimuth_ms_) <= AZIMUTH_MAX_AGE_MS) {
     radians = this->last_azimuth_rad_;
   } else if (!this->read_azimuth_radians_(radians)) {
     // Expected when the beam poll is disabled, or when the DSP has no source to
@@ -531,6 +531,17 @@ void RespeakerXVF3800::unlock_beam() {
   this->xmos_write_bytes(AEC_SERVICER_RESID, AEC_FIXEDBEAMS_ONOFF_CMD, off, sizeof(off));
   this->beam_locked_ = false;
   ESP_LOGI(TAG, "Beam lock released");
+}
+
+float RespeakerXVF3800::get_azimuth_degrees() const {
+  // While locked, the cache holds the locked direction: lock_beam() took it from
+  // there, and the poll then reads the pinned slot, which is not cached.
+  if (!this->beam_locked_ &&
+      (this->last_azimuth_ms_ == 0 || (millis() - this->last_azimuth_ms_) > AZIMUTH_MAX_AGE_MS)) {
+    return NAN;
+  }
+  const float degrees = fmodf(this->last_azimuth_rad_ * 180.0f / (float) M_PI, 360.0f);
+  return degrees < 0.0f ? degrees + 360.0f : degrees;
 }
 
 void RespeakerXVF3800::xmos_write_bytes(uint8_t resid, uint8_t cmd, const uint8_t *value, uint8_t write_byte_num) {

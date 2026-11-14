@@ -282,6 +282,11 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   void lock_beam();
   void unlock_beam();
 
+  // Voice direction in degrees [0, 360): the locked direction while the beam is
+  // locked, else the last auto-select azimuth of the beam poll. No bus access.
+  // NAN when the poll has no value younger than AZIMUTH_MAX_AGE_MS.
+  float get_azimuth_degrees() const;
+
   // Setters for child components
   void set_mute_switch(MuteSwitch *mute_switch) { mute_switch_ = mute_switch; }
   void set_dfu_version_sensor(DFUVersionTextSensor *dfu_version_sensor) { dfu_version_sensor_ = dfu_version_sensor; }
@@ -351,6 +356,7 @@ class RespeakerXVF3800 : public i2c::I2CDevice, public Component {
   // this fresh, so lock_beam() can pin the beam without its own blocking read.
   float last_azimuth_rad_{0.0f};
   uint32_t last_azimuth_ms_{0};
+  static constexpr uint32_t AZIMUTH_MAX_AGE_MS = 500;
 
   // Last frame written by set_led_ring(), so an unchanged frame skips the bus.
   uint32_t last_led_frame_[12]{};

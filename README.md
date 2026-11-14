@@ -43,6 +43,7 @@ The device gives these entities to Home Assistant:
 | Firmware Version | text sensor | Shows the XMOS DSP firmware version |
 | DSP Status | text sensor | Shows the result of the DSP firmware check at boot |
 | Current device time | text sensor | Shows the device clock |
+| Voice Direction | sensor | Shows the direction of the last wake word in degrees (disabled by default) |
 | Next timer, Next timer name | sensor, text sensor | Show the first active timer |
 | Media Player | media player | Plays announcements and media |
 | Restart, Factory Reset | button | Restart and factory reset |
@@ -331,7 +332,7 @@ sounds. Koala Satellite and the Respeaker Lite use the same core. The
 | --- | --- |
 | `base.yaml` | The voice satellite core, `esphome`, `esp32`, `psram`, the logger level, the Wi-Fi tuning, the `set_led_color` action, `i2c`, `external_components` |
 | `hardware.yaml` | `i2s_audio`, `microphone`, `speaker`, `audio_dac`, `respeaker_xvf3800` with the DFU firmware |
-| `voice-assistant.yaml` | The beam lock, the wake word gain, the volume range and the volume display of the media player |
+| `voice-assistant.yaml` | The beam lock, the voice direction sensor, the wake word gain, the volume range and the volume display of the media player |
 | `leds.yaml` | LED globals, the animation interval, the effect scripts, the colour preset |
 | `timers-alarm.yaml` | The timer animation of the LED ring |
 
@@ -567,6 +568,17 @@ the end of the pipeline. So the ring stays on the speaker during one utterance.
 The **Beam lock** switch turns this behaviour on and off. Beam lock reads the
 direction from the `led_beam_sensor` poll. Keep that poll on, or beam lock has
 no direction to use.
+
+The **Voice Direction** sensor shows the direction of the wake word in degrees,
+from 0 to 360. The device sends one value for each wake word, so the sensor
+does not load the connection. If Beam lock is on, the value is the locked
+direction. The sensor also reads the `led_beam_sensor` poll. Home Assistant
+disables the sensor by default. Enable it to turn a camera or a robot to the
+speaker.
+
+In your own lambdas, call `id(respeaker).get_azimuth_degrees()`. The call gives
+the same direction and does no I2C read. It gives `NAN` if the poll has no
+value from the last 500 ms.
 
 ---
 
