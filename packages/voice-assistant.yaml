@@ -71,6 +71,13 @@ voice_assistant:
     # Safety-net unlock: covers paths where on_stt_vad_end never fired
     # (pipeline error mid-capture, abort, etc.). Idempotent.
     - lambda: id(respeaker).unlock_beam();
+  # With wake word verification, the hook locks the beam before Home Assistant
+  # accepts the wake word. A rejection or a verification timeout (an error)
+  # ends the capture, and on_end is not guaranteed to follow either.
+  on_wake_word_rejected:
+    - lambda: id(respeaker).unlock_beam();
+  on_error:
+    - lambda: id(respeaker).unlock_beam();
 
 media_player:
   # The full volume range, and the volume display on the LED ring.
