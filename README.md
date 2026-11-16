@@ -1,3 +1,8 @@
+> **This repository moved.** The XVF3800 firmware is now in
+> [formatBCE/Respeaker-ESPHome-integration](https://github.com/formatBCE/Respeaker-ESPHome-integration/blob/main/readme/xvf3800/README.md).
+> This repository gets no new releases. Read
+> [Move from the old repository](https://github.com/formatBCE/Respeaker-ESPHome-integration/blob/main/readme/xvf3800/README.md#move-from-the-old-repository).
+
 # reSpeaker XVF3800 — ESPHome voice satellite
 
 ESPHome components and configuration packages that make a
